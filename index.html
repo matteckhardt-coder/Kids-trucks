@@ -3,20 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="description" content="Dirt Diggers — a kids' game where you drive bulldozers, dump trucks, backhoes and loaders to move dirt around." />
+  <meta name="description" content="Dirt Diggers — a kids' game where you drive cartoon bulldozers, dump trucks, backhoes and loaders to move dirt around." />
   <meta name="theme-color" content="#8a6d3b" />
   <title>🚜 Dirt Diggers</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="machine-picker" class="machine-picker" role="tablist" aria-label="Choose a machine">
-    <!-- Buttons injected by game.js -->
+  <!-- Phaser renders the game world here -->
+  <div id="game-root"></div>
+
+  <!-- Loading splash (hidden once the game boots) -->
+  <div id="splash" class="splash">
+    <div class="splash-truck">🚜</div>
+    <div class="splash-title">Dirt Diggers</div>
+    <div class="splash-tip">Loading the dirt yard…</div>
   </div>
 
-  <div class="stage">
-    <canvas id="game" aria-label="Dirt yard. Drive your machine to move the dirt."></canvas>
+  <!-- Touch controls overlay -->
+  <div id="ui" class="ui hidden">
+    <div id="machine-picker" class="machine-picker" aria-label="Choose a machine"></div>
 
-    <!-- On-screen controls (also works with WASD / arrow keys + J / K on desktop) -->
     <div id="joystick" class="joystick" aria-hidden="true">
       <div id="joystick-knob" class="joystick-knob"></div>
     </div>
@@ -33,11 +39,12 @@
       <div id="machine-label" class="machine-label">Bulldozer</div>
       <div class="hud-row">
         <button id="btn-flatten" class="flatten-btn" type="button" title="Smooth the whole yard">↺ Level</button>
-        <button id="btn-mute" class="flatten-btn" type="button" title="Sound on/off" aria-label="Sound on or off">🔊</button>
+        <button id="btn-mute" class="flatten-btn" type="button" aria-label="Sound on or off">🔊</button>
       </div>
     </div>
   </div>
 
+  <script src="vendor/phaser.min.js"></script>
   <script src="trucks.js"></script>
   <script src="audio.js"></script>
   <script src="game.js"></script>

@@ -10,6 +10,11 @@ truck fans. Every machine has its own engine rumble, and there are dirt plops,
 scoops, beeps and a "bucket full" ding — all synthesized in the browser, no
 sound files needed.
 
+It's built as a real 2D game on the **Phaser 3** engine (bundled in `vendor/`),
+with chunky cartoon machines, organic shaded dirt heaps, a follow camera, and
+dust / dirt-clod particles. All the art is generated in code — there are no
+image files to load.
+
 ## Play it on your phone
 
 The game auto-deploys to **GitHub Pages**. Once the *Deploy to GitHub Pages*
@@ -63,11 +68,12 @@ or simply open `index.html` in a browser.
 ## Project layout
 
 ```
-index.html   – page + on-screen controls
-styles.css   – layout and touch-control styling
-trucks.js    – the machine definitions (speed, bucket size, mechanics)
-audio.js     – synthesized engine/dig/dump/beep sounds (no audio files)
-game.js      – the game engine: dirt grid, driving, dig/dump/doze, rendering
+index.html         – page, control overlay, script tags
+styles.css         – layout and touch-control styling
+trucks.js          – machine definitions (speed, bucket size, mechanics, sprite shape)
+audio.js           – synthesized engine/dig/dump/beep sounds (no audio files)
+game.js            – Phaser game: sprite generation, dirt field, driving, dig/dump/doze
+vendor/phaser.min.js – the Phaser 3 game engine (bundled so it always loads)
 .github/workflows/deploy.yml – publishes the game to GitHub Pages
 ```
 
