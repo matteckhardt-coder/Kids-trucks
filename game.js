@@ -75,6 +75,10 @@
     for (const btn of document.querySelectorAll(".machine-btn")) {
       btn.classList.toggle("active", btn.dataset.id === def.id);
     }
+    // Dim the DIG / DUMP buttons this machine can't use.
+    document.getElementById("btn-dig").classList.toggle("off", def.dig === false);
+    document.getElementById("btn-dump").classList.toggle("off", def.dump === false);
+    Sound.horn();
   }
 
   // ---- Input state ----
@@ -166,15 +170,38 @@
     player.bucket = 0;
   });
 
+  document.getElementById("btn-mute").addEventListener("click", (e) => {
+    Sound.ensure();
+    const muted = Sound.toggleMute();
+    e.currentTarget.textContent = muted ? "🔇" : "🔊";
+  });
+
+  // Audio can only start after a user gesture — unlock it on the first one.
+  function unlockAudio() { Sound.ensure(); }
+  window.addEventListener("touchstart", unlockAudio, { once: true });
+  window.addEventListener("mousedown", unlockAudio, { once: true });
+  window.addEventListener("keydown", unlockAudio, { once: true });
+
   // ---- Simulation ----
-  function frontTile(reach) {
-    const fx = player.x + Math.cos(player.heading) * reach;
-    const fy = player.y + Math.sin(player.heading) * reach;
-    return { c: Math.floor(fx / TILE), r: Math.floor(fy / TILE), x: fx, y: fy };
+  function tileAtOffset(dist, angleOffset) {
+    const a = player.heading + (angleOffset || 0);
+    const x = player.x + Math.cos(a) * dist;
+    const y = player.y + Math.sin(a) * dist;
+    return { c: Math.floor(x / TILE), r: Math.floor(y / TILE) };
   }
+
+  // Where this machine's bucket works (front, side, or under itself).
+  function toolTile(def) {
+    if (def.scoop === "side") return tileAtOffset(20, Math.PI / 2);
+    return tileAtOffset(22, 0);
+  }
+
+  // Per-frame action flags, read by the sound step.
+  let acting = { dig: false, dump: false, load: false };
 
   function update(dt) {
     const def = player.def;
+    acting.dig = acting.dump = acting.load = false;
 
     // Drive: joystick vector maps straight to velocity; the machine faces where it goes.
     const mag = Math.hypot(input.mx, input.my);
@@ -188,44 +215,83 @@
 
     // Bulldozer: the blade pushes dirt forward as it drives.
     if (def.dozer && mag > 0.2) {
-      const blade = frontTile(20);
-      const ahead = frontTile(20 + TILE);
+      const blade = tileAtOffset(20, 0);
+      const ahead = tileAtOffset(20 + TILE, 0);
       if (inBounds(blade.c, blade.r) && inBounds(ahead.c, ahead.r)) {
         const bi = di(blade.c, blade.r);
         if (dirt[bi] > 0) {
-          const move = Math.min(dirt[bi], 5 * dt * mag);
           const ai = di(ahead.c, ahead.r);
           const room = MAX_DIRT - dirt[ai];
-          const moved = Math.min(move, room);
-          dirt[bi] -= moved;
-          dirt[ai] += moved;
+          const moved = Math.min(dirt[bi], 5 * dt * mag, room);
+          if (moved > 0) { dirt[bi] -= moved; dirt[ai] += moved; }
         }
       }
     }
 
-    // DIG: scoop dirt from the tile in front into the bucket.
-    if (input.dig && player.bucket < def.capacity) {
-      const f = frontTile(22);
-      if (inBounds(f.c, f.r)) {
-        const i = di(f.c, f.r);
-        const avail = dirt[i] - MIN_DIRT;
+    // Dump truck: scoops dirt from piles it drives over, straight into the bed.
+    if (def.scoop === "driveover" && mag > 0.2 && player.bucket < def.capacity) {
+      const c = Math.floor(player.x / TILE), r = Math.floor(player.y / TILE);
+      if (inBounds(c, r) && dirt[di(c, r)] > 0.3) {
+        const i = di(c, r);
+        const rate = def.loadRate || def.digRate;
+        const want = Math.min(rate * dt, def.capacity - player.bucket, dirt[i]);
+        if (want > 0) { dirt[i] -= want; player.bucket += want; acting.load = true; }
+      }
+    }
+
+    // DIG: scoop dirt from the tool tile into the bucket.
+    if (input.dig && def.dig !== false && player.bucket < def.capacity) {
+      const t = toolTile(def);
+      if (inBounds(t.c, t.r)) {
+        const i = di(t.c, t.r);
+        const floorD = def.digMin != null ? def.digMin : -2;
+        const avail = dirt[i] - floorD;
         const want = Math.min(def.digRate * dt, def.capacity - player.bucket, avail);
-        if (want > 0) { dirt[i] -= want; player.bucket += want; }
+        if (want > 0.0001) { dirt[i] -= want; player.bucket += want; acting.dig = true; }
       }
     }
 
-    // DUMP: drop dirt from the bucket onto the tile in front.
-    if (input.dump && player.bucket > 0) {
-      const f = frontTile(22);
-      if (inBounds(f.c, f.r)) {
-        const i = di(f.c, f.r);
-        const room = MAX_DIRT - dirt[i];
-        const give = Math.min(def.digRate * dt, player.bucket, room);
-        if (give > 0) { dirt[i] += give; player.bucket -= give; }
+    // DUMP: drop dirt from the bucket back onto the ground.
+    if (input.dump && def.dump !== false && player.bucket > 0) {
+      const t = toolTile(def);
+      if (inBounds(t.c, t.r)) {
+        if (def.spread) {
+          // Grading: spread the load across the tool tile and its neighbours.
+          const cells = [[t.c, t.r], [t.c + 1, t.r], [t.c - 1, t.r], [t.c, t.r + 1], [t.c, t.r - 1]]
+            .filter(([c, r]) => inBounds(c, r));
+          const per = (def.digRate * dt) / cells.length;
+          let placed = 0;
+          for (const [c, r] of cells) {
+            const i = di(c, r);
+            const give = Math.min(per, MAX_DIRT - dirt[i]);
+            if (give > 0) { dirt[i] += give; placed += give; }
+          }
+          placed = Math.min(placed, player.bucket);
+          if (placed > 0) { player.bucket -= placed; acting.dump = true; }
+        } else {
+          const i = di(t.c, t.r);
+          const give = Math.min(def.digRate * dt, player.bucket, MAX_DIRT - dirt[i]);
+          if (give > 0.0001) { dirt[i] += give; player.bucket -= give; acting.dump = true; }
+        }
       }
     }
 
+    audioStep(dt, mag);
     updateHud();
+  }
+
+  // ---- Sound scheduling (throttled so grains don't machine-gun) ----
+  let sndDig = 0, sndDump = 0, sndBeep = 0, wasFull = false;
+  function audioStep(dt, mag) {
+    Sound.engine(mag);
+    sndDig -= dt; sndDump -= dt; sndBeep -= dt;
+    if ((acting.dig || acting.load) && sndDig <= 0) { Sound.dig(); sndDig = 0.11; }
+    if (acting.dump && sndDump <= 0) { Sound.dump(); sndDump = 0.14; }
+    const full = player.bucket >= player.def.capacity - 0.02;
+    if (full && !wasFull) Sound.ding();
+    wasFull = full;
+    // Dump truck backup beep while hauling.
+    if (player.def.scoop === "driveover" && mag > 0.25 && sndBeep <= 0) { Sound.beep(); sndBeep = 0.6; }
   }
 
   function updateHud() {

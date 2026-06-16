@@ -166,6 +166,10 @@ html, body {
   cursor: pointer;
 }
 .flatten-btn:active { transform: translateY(2px); }
+.hud-row { display: flex; gap: 8px; }
+
+/* Dim an action button when the current machine can't use it. */
+.action-btn.off { opacity: 0.3; }
 
 @media (min-width: 820px) {
   /* On desktop the touch controls are optional; keep them but a little dimmer. */

@@ -1,9 +1,17 @@
 // Construction machines kids can drive in the dirt yard.
-// Tuning notes:
+//
+// Tuning fields:
 //   speed    – how fast it drives (world px / second)
-//   digRate  – how fast DIG fills / DUMP empties the bucket (dirt units / second)
+//   digRate  – how fast DIG fills / DUMP empties the bucket (dirt units / sec)
 //   capacity – how much dirt the bucket or bed can hold
-//   dozer    – true if a front blade pushes dirt while driving
+//
+// Mechanic fields (what makes each machine special):
+//   dozer    – a front blade that pushes dirt while driving
+//   scoop    – where the bucket works: "front", "side", "driveover", or null
+//   dig      – can use the DIG button (default true)
+//   dump     – can use the DUMP button (default true)
+//   spread   – DUMP spreads dirt over several tiles (grading)
+//   digMin   – deepest it can dig a tile down to (default -2; lower = deeper)
 const TRUCKS = [
   {
     id: "bulldozer",
@@ -15,7 +23,10 @@ const TRUCKS = [
     digRate: 4,
     capacity: 3,
     dozer: true,
-    blurb: "Push big piles of dirt with the blade!",
+    scoop: null,
+    dig: false,
+    dump: false,
+    blurb: "Just drive — the blade pushes dirt into big piles.",
   },
   {
     id: "frontloader",
@@ -26,8 +37,9 @@ const TRUCKS = [
     speed: 165,
     digRate: 6,
     capacity: 8,
-    dozer: false,
-    blurb: "Scoop up a giant bucket of dirt.",
+    scoop: "front",
+    digMin: -1,
+    blurb: "Scoop up a giant bucket from in front of you.",
   },
   {
     id: "backhoe",
@@ -36,10 +48,11 @@ const TRUCKS = [
     color: "#ffb703",
     accent: "#bb8500",
     speed: 135,
-    digRate: 7,
+    digRate: 8,
     capacity: 5,
-    dozer: false,
-    blurb: "Dig deep holes in the ground.",
+    scoop: "front",
+    digMin: -4,
+    blurb: "Digs deep holes in the ground, fast.",
   },
   {
     id: "dumptruck",
@@ -48,10 +61,12 @@ const TRUCKS = [
     color: "#e8703a",
     accent: "#b14f20",
     speed: 175,
-    digRate: 3,
-    capacity: 12,
-    dozer: false,
-    blurb: "Haul a huge load and dump it anywhere.",
+    digRate: 6,
+    capacity: 14,
+    scoop: "driveover",
+    loadRate: 7,
+    dig: false,
+    blurb: "Drive over piles to fill the bed, then DUMP a huge load.",
   },
   {
     id: "skidsteer",
@@ -59,11 +74,13 @@ const TRUCKS = [
     emoji: "🛻",
     color: "#5fb85f",
     accent: "#3d8a3d",
-    speed: 200,
-    digRate: 5,
+    speed: 205,
+    digRate: 6,
     capacity: 4,
-    dozer: false,
-    blurb: "Quick and nimble — spins on a dime.",
+    scoop: "front",
+    spread: true,
+    digMin: -1,
+    blurb: "Quick and nimble — DUMP spreads dirt out flat.",
   },
   {
     id: "sideloader",
@@ -74,8 +91,9 @@ const TRUCKS = [
     speed: 160,
     digRate: 5,
     capacity: 7,
-    dozer: false,
-    blurb: "A big friendly hauler for the yard.",
+    scoop: "side",
+    digMin: -1,
+    blurb: "Loads and dumps from the side as you drive past.",
   },
 ];
 

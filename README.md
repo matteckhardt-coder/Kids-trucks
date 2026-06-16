@@ -6,7 +6,18 @@ dig, and dump dirt** to your heart's content. Built to feel great on a phone or
 tablet, with big touch controls — no reading required.
 
 There's no score and nothing to lose: it's an open-ended dirt sandbox for little
-truck fans.
+truck fans. Every machine has its own engine rumble, and there are dirt plops,
+scoops, beeps and a "bucket full" ding — all synthesized in the browser, no
+sound files needed.
+
+## Play it on your phone
+
+The game auto-deploys to **GitHub Pages**. Once the *Deploy to GitHub Pages*
+action finishes, open this on your phone:
+
+> **https://matteckhardt-coder.github.io/Kids-trucks/**
+
+(Tap the screen once so sound can start — phones block audio until you do.)
 
 ## How to play
 
@@ -18,18 +29,24 @@ truck fans.
 | **Bulldozer blade** | Just drive — the bulldozer's blade pushes dirt forward into big piles. |
 | **Machine bar (top)** | Tap to switch between machines. |
 | **↺ Level** | Smooths the whole yard so you can start fresh. |
+| **🔊 / 🔇** | Turn sound on or off. |
+
+DIG and DUMP dim out automatically for machines that don't use them (the
+bulldozer pushes instead, and the dump truck loads by driving over piles).
 
 On a **computer** you can also use **WASD / arrow keys** to drive, **J** (or
 space) to dig, and **K** to dump.
 
-### The machines
+### The machines — each one works differently
 
-- **Bulldozer** — pushes dirt with its blade as it drives.
-- **Front Loader** — a big bucket for scooping lots of dirt.
-- **Backhoe** — digs deep holes fast.
-- **Dump Truck** — hauls a giant load and dumps it anywhere.
-- **Skid Steer** — quick and nimble.
-- **Side Loader** — a big friendly hauler.
+- **Bulldozer** — no buttons needed: just drive and the blade pushes dirt into
+  big piles in front of you.
+- **Front Loader** — a big front bucket. DIG to scoop, DUMP to pour.
+- **Backhoe** — digs the deepest holes, fast (great for making craters).
+- **Dump Truck** — *drive over piles* to auto-fill the bed (beeping as it
+  hauls), then DUMP a huge load wherever you like.
+- **Skid Steer** — quick and nimble; DUMP spreads dirt out flat for grading.
+- **Side Loader** — loads and dumps from the **side**, so drive alongside a pile.
 
 ## Run it locally
 
@@ -48,8 +65,10 @@ or simply open `index.html` in a browser.
 ```
 index.html   – page + on-screen controls
 styles.css   – layout and touch-control styling
-trucks.js    – the machine definitions (speed, bucket size, etc.)
+trucks.js    – the machine definitions (speed, bucket size, mechanics)
+audio.js     – synthesized engine/dig/dump/beep sounds (no audio files)
 game.js      – the game engine: dirt grid, driving, dig/dump/doze, rendering
+.github/workflows/deploy.yml – publishes the game to GitHub Pages
 ```
 
 ## Tweaking the machines
