@@ -1,9 +1,10 @@
-# 🚜 Dirt Diggers
+# 🏙️ City Helpers
 
-A simple, good-looking **construction game for kids**. Drive real toy-style
-trucks around a dirt yard, **dig the ground**, and **load the dump truck** — with
-a clear goal, cheerful sounds, and dust flying everywhere. Built to feel great on
-a phone or tablet, with big touch controls and no reading required.
+A friendly **city game for kids**. Drive city trucks around town and help out —
+the **fire truck** puts out fires, the **garbage truck** picks up garbage, the
+**ambulance** rushes to the rescue, and more. Finish jobs to earn XP, **level
+up**, and **unlock new trucks**. Big touch controls, no reading required, made
+to feel great on a phone.
 
 ## Play it on your phone
 
@@ -18,52 +19,50 @@ Tap the screen once so the sound can start (phones block audio until you do).
 | Control | What it does |
 | --- | --- |
 | **Left thumb (drive)** | Touch and drag on the left side to steer; the truck drives where you push. |
-| **DIG** | Hold to dig dirt into the loader's bucket. |
-| **DUMP** | Hold to tip your dirt out — into the dump truck if you're next to it, otherwise onto the ground. |
-| **Tap a truck** | Switch to driving that truck (they all share the yard). |
-| **Machine bar (top)** | Or tap a name to jump to that truck. |
-| **Goal banner** | Dig dirt, pour it into the dump truck, and fill it up for a cheer! |
-| **↺ Level** | Smooth the whole yard to start fresh. |
+| **Top truck bar** | Tap a truck to drive it. Locked trucks show 🔒 and the level you need. |
+| **Tap a truck on screen** | Also switches to driving it. |
+| **Follow the arrow** | A golden arrow points to your truck's job. |
+| **Do the job** | Drive the **right truck** onto the glowing ring (🔥 needs the fire truck, 🗑️ the garbage truck, …) and wait a moment — job done! |
+| **HONK** | Make some noise! |
 | **🔊 / 🔇** | Turn sound on or off. |
 
-On a **computer**: drive with **WASD / arrow keys**, dig with **J** (or space),
-dump with **K**.
+On a computer, drive with **WASD / arrow keys**.
 
-### The trucks
+## Trucks & jobs
 
-A whole fleet shares the yard — tap any to drive it:
+Each completed job gives **XP**. Level up to unlock the next truck:
 
-- **Loader** — digs dirt with its shovel and pours it into the dump truck.
-- **Dump Truck** & **Garbage Truck** — haul the dirt; drive over loose piles to
-  scoop them up, or park next to the loader to be filled.
-- **Tractor**, **Fire Truck**, **Delivery** — just fun to drive around.
+- 🚒 **Fire Truck** → put out **fires** (Level 1)
+- 🚛 **Garbage Truck** → pick up **garbage** (Level 1)
+- 🚑 **Ambulance** → rush to a **rescue** (Level 2)
+- 🚓 **Police** → stop **trouble** (Level 3)
+- 🚕 **Taxi** → pick up a **rider** (Level 4)
+- 📦 **Delivery** → drop off a **package** (Level 5)
+- 🪝 **Tow Truck** → tow a **broken-down car** (Level 6)
 
 ## How it's built
 
-Plain HTML, CSS, and JavaScript — no build step. It runs on **Babylon.js** (3D)
-with a deformable dirt-heightmap terrain, soft shadows, and filmic
-post-processing. The trucks and buildings are real 3D models.
+Plain HTML/CSS/JS, no build step. Runs on **Babylon.js** (3D) with soft shadows
+and filmic post-processing. The trucks and buildings are real 3D models.
 
 ```
-index.html                    – page, controls, goal banner
-styles.css                    – layout and touch-control styling
-audio.js                      – synthesized engine/dig/dump/cheer sounds (no audio files)
-game.js                       – the game: terrain, driving, dig/dump, fleet, goal
-vendor/babylon.js             – Babylon.js engine (bundled)
-vendor/babylonjs.loaders.min.js – glTF model loader (bundled)
-assets/models, assets/city    – truck and building models
-.github/workflows/deploy.yml  – publishes to GitHub Pages
+index.html                      – page, controls, level/XP UI
+styles.css                      – layout and touch styling
+audio.js                        – synthesized engine/horn/chime sounds
+game.js                         – city, jobs, leveling, driving
+vendor/babylon.js, *.loaders    – Babylon.js engine + glTF loader (bundled)
+assets/models, assets/city      – vehicle and building models
+.github/workflows/deploy.yml    – publishes to GitHub Pages
 ```
 
-## Run it locally
+## Run locally
 
 ```bash
-python3 -m http.server 8000
-# then open http://localhost:8000
+python3 -m http.server 8000   # then open http://localhost:8000
 ```
 
 ## Credits
 
-3D models are from **Kenney's "Car Kit"** (https://kenney.nl), released under
-**CC0 / public domain**. Thank you, Kenney! See `assets/KENNEY-LICENSE.txt`.
-Everything else (terrain, game logic, sounds) is generated in code.
+3D models are from **Kenney's "Car Kit"** (https://kenney.nl), **CC0 /
+public domain** — see `assets/KENNEY-LICENSE.txt`. Everything else (city
+layout, jobs, sounds) is generated in code.

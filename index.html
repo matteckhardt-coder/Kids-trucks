@@ -3,49 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="description" content="Dirt Diggers — a kids' construction game: drive real trucks, dig dirt, and load the dump truck." />
-  <meta name="theme-color" content="#8a6d3b" />
-  <title>🚜 Dirt Diggers</title>
+  <meta name="description" content="City Helpers — a kids' game: drive city trucks to do their jobs, level up, and unlock new trucks." />
+  <meta name="theme-color" content="#6cae57" />
+  <title>🏙️ City Helpers</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <canvas id="renderCanvas" touch-action="none"></canvas>
 
   <div id="splash" class="splash">
-    <div class="splash-truck">🚜</div>
-    <div class="splash-title">Dirt Diggers</div>
-    <div class="splash-tip">Warming up the trucks…</div>
+    <div class="splash-truck">🚒</div>
+    <div class="splash-title">City Helpers</div>
+    <div class="splash-tip">Starting the engines…</div>
   </div>
 
   <div id="ui" class="ui hidden">
-    <div id="machine-picker" class="machine-picker" aria-label="Choose a machine"></div>
+    <div id="machine-picker" class="machine-picker" aria-label="Choose a truck"></div>
 
-    <div id="stars" class="stars">⭐ 0</div>
+    <div id="topstat" class="topstat">
+      <span id="level" class="lvl">Lvl 1</span>
+      <div class="xp-meter"><div id="xp-fill" class="xp-fill"></div></div>
+      <span id="done" class="done">✅ 0</span>
+    </div>
 
     <div id="goal" class="goal">
-      <span id="goal-text">Dig dirt and load the dump truck!</span>
+      <span id="goal-text">Drive a truck to a job!</span>
       <div class="goal-meter"><div id="goal-fill" class="goal-fill"></div></div>
     </div>
 
-    <div id="joystick" class="joystick" aria-hidden="true">
-      <div id="joystick-knob" class="joystick-knob"></div>
-    </div>
+    <div id="joystick" class="joystick" aria-hidden="true"><div id="joystick-knob" class="joystick-knob"></div></div>
 
     <div class="action-buttons">
-      <button id="btn-dig" class="action-btn dig" type="button" aria-label="Dig">DIG</button>
-      <button id="btn-dump" class="action-btn dump" type="button" aria-label="Dump">DUMP</button>
+      <button id="btn-horn" class="action-btn horn" type="button" aria-label="Honk">HONK</button>
     </div>
 
     <div class="hud">
-      <div class="bucket-meter" aria-label="Bucket fill"><div id="bucket-fill" class="bucket-fill"></div></div>
-      <div id="machine-label" class="machine-label">Loader</div>
-      <div class="hud-row">
-        <button id="btn-flatten" class="flatten-btn" type="button" title="Smooth the whole yard">↺ Level</button>
-        <button id="btn-mute" class="flatten-btn" type="button" aria-label="Sound on or off">🔊</button>
-      </div>
+      <div id="machine-label" class="machine-label">Fire Truck</div>
+      <button id="btn-mute" class="flatten-btn" type="button" aria-label="Sound on or off">🔊</button>
     </div>
 
-    <div id="cheer" class="cheer hidden">Great job! 🎉</div>
+    <div id="cheer" class="cheer hidden"></div>
   </div>
 
   <script src="vendor/babylon.js"></script>
