@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="description" content="Dirt Diggers — a kids' 3D game where you drive blocky construction trucks and dig real dirt." />
+  <meta name="description" content="Dirt Diggers — a kids' construction game: drive real trucks, dig dirt, and load the dump truck." />
   <meta name="theme-color" content="#8a6d3b" />
-  <title>🚜 Dirt Diggers 3D</title>
+  <title>🚜 Dirt Diggers</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -14,11 +14,16 @@
   <div id="splash" class="splash">
     <div class="splash-truck">🚜</div>
     <div class="splash-title">Dirt Diggers</div>
-    <div class="splash-tip">Building the dirt yard…</div>
+    <div class="splash-tip">Warming up the trucks…</div>
   </div>
 
   <div id="ui" class="ui hidden">
     <div id="machine-picker" class="machine-picker" aria-label="Choose a machine"></div>
+
+    <div id="goal" class="goal">
+      <span id="goal-text">Dig dirt and load the dump truck!</span>
+      <div class="goal-meter"><div id="goal-fill" class="goal-fill"></div></div>
+    </div>
 
     <div id="joystick" class="joystick" aria-hidden="true">
       <div id="joystick-knob" class="joystick-knob"></div>
@@ -30,19 +35,19 @@
     </div>
 
     <div class="hud">
-      <div class="bucket-meter" aria-label="Bucket fill">
-        <div id="bucket-fill" class="bucket-fill"></div>
-      </div>
-      <div id="machine-label" class="machine-label">Bulldozer</div>
+      <div class="bucket-meter" aria-label="Bucket fill"><div id="bucket-fill" class="bucket-fill"></div></div>
+      <div id="machine-label" class="machine-label">Loader</div>
       <div class="hud-row">
         <button id="btn-flatten" class="flatten-btn" type="button" title="Smooth the whole yard">↺ Level</button>
         <button id="btn-mute" class="flatten-btn" type="button" aria-label="Sound on or off">🔊</button>
       </div>
     </div>
+
+    <div id="cheer" class="cheer hidden">Great job! 🎉</div>
   </div>
 
   <script src="vendor/babylon.js"></script>
-  <script src="trucks.js"></script>
+  <script src="vendor/babylonjs.loaders.min.js"></script>
   <script src="audio.js"></script>
   <script src="game.js"></script>
 </body>

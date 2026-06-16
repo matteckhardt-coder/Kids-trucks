@@ -122,3 +122,23 @@ html, body {
   border-radius: 10px; padding: 6px 12px; cursor: pointer;
 }
 .flatten-btn:active { transform: translateY(2px); }
+
+/* ---- Goal banner ---- */
+.goal {
+  position: absolute; top: max(64px, calc(env(safe-area-inset-top) + 60px));
+  left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 8px 16px; border-radius: 14px; background: var(--panel);
+  font-weight: 800; font-size: 15px; pointer-events: none; max-width: 80vw; text-align: center;
+}
+.goal-meter { width: 180px; height: 12px; border-radius: 8px; background: rgba(0,0,0,0.35); overflow: hidden; }
+.goal-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffd23f, #ff9a1a); transition: width 0.15s linear; }
+
+/* ---- Cheer ---- */
+.cheer {
+  position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%) scale(0.6);
+  font-size: 40px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 rgba(0,0,0,0.25);
+  pointer-events: none; opacity: 0; transition: opacity 0.25s ease, transform 0.35s cubic-bezier(.2,1.4,.4,1);
+}
+.cheer.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.cheer.hidden { display: block; }
