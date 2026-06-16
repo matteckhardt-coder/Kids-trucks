@@ -11,6 +11,11 @@
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   function hex(n) { return new B.Color3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); }
 
+  // Road grid lines + building obstacles (for collision).
+  const RD = [-44, -22, 0, 22, 44], ROADW = 9;
+  const obstacles = [];
+  function blocked(x, z, sr) { for (const o of obstacles) if (Math.hypot(x - o.x, z - o.z) < o.r + sr) return true; return false; }
+
   const input = { mx: 0, my: 0 }; const keys = Object.create(null);
 
   // ---- Engine / scene ----
@@ -58,6 +63,12 @@
   confetti.direction1 = new B.Vector3(-3, 8, -3); confetti.direction2 = new B.Vector3(3, 12, 3); confetti.minEmitPower = 1; confetti.maxEmitPower = 2; confetti.start();
   function burst(x, y, z, n) { confetti.emitter = new B.Vector3(x, y, z); confetti.manualEmitCount = n; }
 
+  // Water spray from the fire truck.
+  const water = new B.ParticleSystem("water", 300, scene); water.particleTexture = DOT; water.emitter = new B.Vector3(0, 1, 0);
+  water.color1 = new B.Color4(0.55, 0.8, 1, 0.9); water.color2 = new B.Color4(0.85, 0.95, 1, 0.85); water.colorDead = new B.Color4(0.7, 0.85, 1, 0);
+  water.minSize = 0.18; water.maxSize = 0.5; water.minLifeTime = 0.25; water.maxLifeTime = 0.55; water.emitRate = 0; water.gravity = new B.Vector3(0, -11, 0);
+  water.direction1 = new B.Vector3(0, 0.5, 1); water.direction2 = new B.Vector3(0, 1, 1); water.minEmitPower = 8; water.maxEmitPower = 12; water.updateSpeed = 0.02; water.start();
+
   // ---- Assets ----
   const CT = {};
   async function load(folder, name) { CT[name] = await B.SceneLoader.LoadAssetContainerAsync(folder + name + ".glb", "", scene); }
@@ -100,23 +111,25 @@
 
   // ---- City ----
   function buildCity() {
-    const grass = B.MeshBuilder.CreateGround("grass", { width: 320, height: 320 }, scene);
+    const grass = B.MeshBuilder.CreateGround("grass", { width: 340, height: 340 }, scene);
     grass.material = pbr(0x6cae57, 1.0); grass.position.y = -0.02; grass.receiveShadows = true;
-    const road = pbr(0x555a60, 0.95);
-    for (let i = -1; i <= 1; i++) {
-      const h = B.MeshBuilder.CreateGround("road", { width: SIZE * 2 + 20, height: 9 }, scene); h.position.set(0, 0.01, i * 24); h.material = road; h.receiveShadows = true;
-      const v = B.MeshBuilder.CreateGround("road", { width: 9, height: SIZE * 2 + 20 }, scene); v.position.set(i * 24, 0.01, 0); v.material = road; v.receiveShadows = true;
+    const road = pbr(0x53585f, 0.95), span = SIZE * 2 + 30;
+    for (const r of RD) {
+      const h = B.MeshBuilder.CreateGround("road", { width: span, height: ROADW }, scene); h.position.set(0, 0.01, r); h.material = road; h.receiveShadows = true;
+      const v = B.MeshBuilder.CreateGround("road", { width: ROADW, height: span }, scene); v.position.set(r, 0.01, 0); v.material = road; v.receiveShadows = true;
     }
     const builds = ["building-type-a", "building-type-b", "building-type-c", "building-type-d", "building-type-e", "building-type-f", "building-type-g", "building-type-h", "building-type-i"];
-    let bi = 0;
-    for (let gx = -1; gx <= 1; gx++) for (let gz = -1; gz <= 1; gz++) {
-      if (gx === 0 && gz === 0) continue;
-      for (const [ox, oz] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) {
-        if (Math.random() < 0.35) continue;
-        placeModel("city", builds[bi++ % builds.length], gx * 24 + ox, gz * 24 + oz, 7 + Math.random() * 2, Math.floor(Math.random() * 4) * Math.PI / 2);
+    const centers = [-33, -11, 11, 33]; let bi = 0;
+    for (const cx of centers) for (const cz of centers) {
+      if (Math.random() < 0.2) { // leave a small park
+        placeModel("city", "tree-large", cx - 2, cz, 5, Math.random() * 6);
+        placeModel("city", "tree-small", cx + 3, cz + 2.5, 4, Math.random() * 6);
+        continue;
       }
+      placeModel("city", builds[bi++ % builds.length], cx, cz, 8, Math.floor(Math.random() * 4) * Math.PI / 2);
+      obstacles.push({ x: cx, z: cz, r: 4.3 });
+      if (Math.random() < 0.7) placeModel("city", Math.random() < 0.5 ? "tree-small" : "tree-large", cx + 5, cz + 5, 3.4, Math.random() * 6);
     }
-    for (let i = 0; i < 16; i++) { const a = Math.random() * 6.28, rd = 14 + Math.random() * (SIZE - 10); placeModel("city", Math.random() < 0.5 ? "tree-large" : "tree-small", Math.cos(a) * rd, Math.sin(a) * rd, 4 + Math.random() * 2, Math.random() * 6); }
   }
   function placeModel(folderKey, name, x, z, s, ry) {
     const root = instance(name); const holder = new B.TransformNode("env", scene); root.parent = holder;
@@ -128,7 +141,7 @@
 
   // ---- Fleet ----
   const machines = []; let active = null;
-  const DEPOT = [[-6, SIZE - 8], [6, SIZE - 8], [-14, SIZE - 8], [14, SIZE - 8], [-6, SIZE - 16], [6, SIZE - 16], [-14, SIZE - 16]];
+  const DEPOT = [[-18, 48], [-6, 48], [6, 48], [18, 48], [-30, 48], [30, 48], [0, 48]];
   function spawnVehicle(cfg, i) {
     const root = instance(cfg.model);
     const { min, max } = root.getHierarchyBoundingVectors(true); const s = cfg.size / Math.max(max.x - min.x, max.z - min.z);
@@ -149,13 +162,13 @@
   function spawnJob() {
     const types = unlockedJobTypes(); if (!types.length) return;
     const jt = types[(Math.random() * types.length) | 0], def = JOBDEF[jt];
-    let x, z, tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z)) && tries < 30);
+    let x, z, tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z) || blocked(x, z, 5)) && tries < 40);
     const node = new B.TransformNode("job", scene); node.position.set(x, 0, z);
     const ring = B.MeshBuilder.CreateTorus("jr", { diameter: 5, thickness: 0.35, tessellation: 26 }, scene); ring.parent = node; ring.position.y = 0.08; const rm = new B.PBRMaterial("jrm", scene); rm.albedoColor = hex(def.color); rm.emissiveColor = hex(def.color).scale(0.5); ring.material = rm; ring.isPickable = false;
     const icon = emojiPlane(def.emoji, 2.6); icon.parent = node; icon.position.y = 3.2;
     const job = { type: jt, x, z, node, ring, icon, work: 0, props: [] };
     node.metadata = jt;
-    if (def.prop === "fire") { const fb = placeModel("city", "building-type-a", x, z, 6, Math.random() * 6); job.props.push(fb); job.fire = makeFire(x, z); }
+    if (def.prop === "fire") { const fb = placeModel("city", "building-type-a", x, z, 6, Math.random() * 6); job.props.push(fb); job.fire = makeFire(x, z); job.obstacle = { x, z, r: 3.8 }; obstacles.push(job.obstacle); }
     else if (def.prop === "trash") { for (let k = 0; k < 4; k++) { const b = B.MeshBuilder.CreateBox("trash", { width: 0.8, height: 0.9, depth: 0.8 }, scene); b.position.set(x + (Math.random() * 2 - 1) * 1.4, 0.45, z + (Math.random() * 2 - 1) * 1.4); b.material = pbr(0x3f7a3a, 0.8); b.isPickable = false; shadow.addShadowCaster(b); job.props.push(b); } }
     else if (def.prop === "box") { const b = B.MeshBuilder.CreateBox("pkg", { width: 1, height: 1, depth: 1 }, scene); b.position.set(x, 0.5, z); b.material = pbr(0xb07a3a, 0.85); b.isPickable = false; shadow.addShadowCaster(b); job.props.push(b); }
     else if (def.prop === "car") { const carRoot = instance(Math.random() < 0.5 ? "sedan" : "suv"); const ch = new B.TransformNode("brk", scene); carRoot.parent = ch; const bb = carRoot.getHierarchyBoundingVectors(true); const sc = 3.6 / Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z); ch.scaling.setAll(sc); ch.position.set(x, -bb.min.y * sc, z); ch.rotation.y = Math.random() * 6; carRoot.getChildMeshes().forEach((me) => { shadow.addShadowCaster(me); me.isPickable = false; }); job.props.push(ch); }
@@ -171,6 +184,7 @@
   function completeJob(job) {
     burst(job.x, 2, job.z, 90); Sound.ding(); setTimeout(() => Sound.horn(), 200);
     if (job.fire) job.fire.dispose();
+    if (job.obstacle) { const oi = obstacles.indexOf(job.obstacle); if (oi >= 0) obstacles.splice(oi, 1); }
     job.props.forEach((p) => p.dispose()); job.ring.dispose(); job.icon.dispose(); job.node.dispose();
     const idx = jobs.indexOf(job); if (idx >= 0) jobs.splice(idx, 1);
     addXp();
@@ -229,9 +243,12 @@
     const m = active, def = m.def;
     readKeyboard();
     const mag = Math.hypot(input.mx, input.my);
+    water.emitRate = 0;
     if (mag > 0.08) {
       const dx = camRight.x * input.mx + camFwd.x * (-input.my), dz = camRight.z * input.mx + camFwd.z * (-input.my), len = Math.hypot(dx, dz) || 1;
-      m.x = clamp(m.x + (dx / len) * mag * def.speed * dt, -SIZE, SIZE); m.z = clamp(m.z + (dz / len) * mag * def.speed * dt, -SIZE, SIZE);
+      const vx = (dx / len) * mag * def.speed * dt, vz = (dz / len) * mag * def.speed * dt, R = 1.7;
+      const nx = clamp(m.x + vx, -SIZE, SIZE); if (!blocked(nx, m.z, R)) m.x = nx;
+      const nz = clamp(m.z + vz, -SIZE, SIZE); if (!blocked(m.x, nz, R)) m.z = nz;
       const tg = Math.atan2(dx, dz); let d = tg - m.heading; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.heading += d * 0.25;
     }
     // animate all vehicles (wheels spin only for active)
@@ -245,7 +262,8 @@
       if (dist < 4.2) {
         myJob.work += dt; prog = clamp(myJob.work / 1.4, 0, 1);
         if (myJob.fire) myJob.fire.emitRate = 90 * (1 - prog);
-        if (myJob.type === "trash") myJob.props.forEach((p, k) => p.scaling.setAll(Math.max(0.02, 1 - prog)));
+        if (myJob.type === "fire") { const ax = myJob.x - m.x, az = myJob.z - m.z, al = Math.hypot(ax, az) || 1; water.emitter.set(m.x + ax / al * 1.8, 1.6, m.z + az / al * 1.8); water.direction1.set(ax / al - 0.25, 0.5, az / al - 0.25); water.direction2.set(ax / al + 0.25, 1.1, az / al + 0.25); water.emitRate = 220; }
+        if (myJob.type === "trash") myJob.props.forEach((p) => p.scaling.setAll(Math.max(0.02, 1 - prog)));
         if (myJob.work >= 1.4) { completeJob(myJob); myJob = null; }
       } else myJob.work = Math.max(0, myJob.work - dt);
     }
