@@ -169,3 +169,5 @@ html, body {
 .goal { top: max(100px, calc(env(safe-area-inset-top) + 96px)); }
 
 .action-btn.horn { background: #d8a32e; }
+
+.action-btn.spray { background: #2f8fd0; }
