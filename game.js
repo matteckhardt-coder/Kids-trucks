@@ -15,8 +15,10 @@
   const RD = [-44, -22, 0, 22, 44], ROADW = 9;
   const obstacles = [];
   function blocked(x, z, sr) { for (const o of obstacles) if (Math.hypot(x - o.x, z - o.z) < o.r + sr) return true; return false; }
+  function onRoad(x, z, pad) { pad = pad || 0; for (const r of RD) if (Math.abs(x - r) < ROADW / 2 + pad || Math.abs(z - r) < ROADW / 2 + pad) return true; return false; }
 
   const input = { mx: 0, my: 0 }; const keys = Object.create(null);
+  let spraying = false, heldSpray = false;
 
   // ---- Engine / scene ----
   const canvas = document.getElementById("renderCanvas");
@@ -85,7 +87,7 @@
     { id: "tow", name: "Tow Truck", emoji: "🪝", model: "truck-flat", level: 6, job: "breakdown", size: 4.0, speed: 10 },
   ];
   const JOBDEF = {
-    fire: { emoji: "🔥", label: "Put out the fire!", color: 0xff5a22, prop: "fire" },
+    fire: { emoji: "🔥", label: "Spray water on the fire!", color: 0xff5a22, prop: "fire" },
     garbage: { emoji: "🗑️", label: "Pick up the garbage!", color: 0x55b24a, prop: "trash" },
     rescue: { emoji: "🚑", label: "Rush to the rescue!", color: 0xff3b5c, prop: null },
     crime: { emoji: "🚨", label: "Stop the trouble!", color: 0x3b6bff, prop: null },
@@ -162,7 +164,7 @@
   function spawnJob() {
     const types = unlockedJobTypes(); if (!types.length) return;
     const jt = types[(Math.random() * types.length) | 0], def = JOBDEF[jt];
-    let x, z, tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z) || blocked(x, z, 5)) && tries < 40);
+    let x, z, tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z) || blocked(x, z, 5) || (jt === "fire" && onRoad(x, z, 4.5))) && tries < 50);
     const node = new B.TransformNode("job", scene); node.position.set(x, 0, z);
     const ring = B.MeshBuilder.CreateTorus("jr", { diameter: 5, thickness: 0.35, tessellation: 26 }, scene); ring.parent = node; ring.position.y = 0.08; const rm = new B.PBRMaterial("jrm", scene); rm.albedoColor = hex(def.color); rm.emissiveColor = hex(def.color).scale(0.5); ring.material = rm; ring.isPickable = false;
     const icon = emojiPlane(def.emoji, 2.6); icon.parent = node; icon.position.y = 3.2;
@@ -251,6 +253,14 @@
       const nz = clamp(m.z + vz, -SIZE, SIZE); if (!blocked(m.x, nz, R)) m.z = nz;
       const tg = Math.atan2(dx, dz); let d = tg - m.heading; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.heading += d * 0.25;
     }
+    // Spray water from the front while the SPRAY button is held.
+    if (spraying) {
+      const sx = m.x + Math.sin(m.heading) * 1.8, sz = m.z + Math.cos(m.heading) * 1.8;
+      water.emitter.set(sx, 1.5, sz);
+      water.direction1.set(Math.sin(m.heading) - 0.25, 0.5, Math.cos(m.heading) - 0.25);
+      water.direction2.set(Math.sin(m.heading) + 0.25, 1.1, Math.cos(m.heading) + 0.25);
+      water.emitRate = 240;
+    }
     // animate all vehicles (wheels spin only for active)
     for (const mm of machines) { if (!mm.unlocked) continue; mm.holder.position.set(mm.x, mm.yOffset, mm.z); mm.holder.rotation.y = mm.heading + FACE; const sp = (mm === m ? mag : 0) * mm.def.speed * dt * 1.1; for (const w of mm.wheels) w.rotation.x += sp; }
 
@@ -260,11 +270,13 @@
     if (myJob) {
       const dist = Math.hypot(myJob.x - m.x, myJob.z - m.z);
       if (dist < 4.2) {
-        myJob.work += dt; prog = clamp(myJob.work / 1.4, 0, 1);
-        if (myJob.fire) myJob.fire.emitRate = 90 * (1 - prog);
-        if (myJob.type === "fire") { const ax = myJob.x - m.x, az = myJob.z - m.z, al = Math.hypot(ax, az) || 1; water.emitter.set(m.x + ax / al * 1.8, 1.6, m.z + az / al * 1.8); water.direction1.set(ax / al - 0.25, 0.5, az / al - 0.25); water.direction2.set(ax / al + 0.25, 1.1, az / al + 0.25); water.emitRate = 220; }
-        if (myJob.type === "trash") myJob.props.forEach((p) => p.scaling.setAll(Math.max(0.02, 1 - prog)));
-        if (myJob.work >= 1.4) { completeJob(myJob); myJob = null; }
+        const canWork = myJob.type !== "fire" || spraying; // fires need water!
+        if (canWork) {
+          myJob.work += dt;
+          if (myJob.type === "trash") myJob.props.forEach((p) => p.scaling.setAll(Math.max(0.02, 1 - clamp(myJob.work / 1.4, 0, 1))));
+          if (myJob.work >= 1.4) { completeJob(myJob); myJob = null; }
+        }
+        if (myJob) { prog = clamp(myJob.work / 1.4, 0, 1); if (myJob.fire) myJob.fire.emitRate = 90 * (1 - prog); }
       } else myJob.work = Math.max(0, myJob.work - dt);
     }
     document.getElementById("goal-fill").style.width = (prog * 100) + "%";
@@ -294,6 +306,7 @@
     if (keys["arrowleft"] || keys["a"]) kx -= 1; if (keys["arrowright"] || keys["d"]) kx += 1;
     if (keys["arrowup"] || keys["w"]) ky -= 1; if (keys["arrowdown"] || keys["s"]) ky += 1;
     if (kx || ky) { const mm = Math.hypot(kx, ky); input.mx = kx / mm; input.my = ky / mm; } else if (!joyId) { input.mx = 0; input.my = 0; }
+    spraying = heldSpray || !!keys[" "] || !!keys["j"];
   }
   let joyId = null, joyOX = 0, joyOY = 0; const JR = 56; let joyEl, knobEl; const taps = {};
   function startJoy(id, x, y) { joyId = id; joyOX = x; joyOY = y; joyEl.style.left = (x - 66) + "px"; joyEl.style.top = (y - 66) + "px"; joyEl.classList.add("active"); moveJoy(x, y); }
@@ -305,7 +318,10 @@
     joyEl = document.getElementById("joystick"); knobEl = document.getElementById("joystick-knob");
     buildPicker();
     document.getElementById("btn-mute").addEventListener("click", (e) => { Sound.ensure(); e.currentTarget.textContent = Sound.toggleMute() ? "🔇" : "🔊"; });
-    const horn = document.getElementById("btn-horn"); horn.addEventListener("pointerdown", (e) => { Sound.ensure(); Sound.horn(); if (e.cancelable) e.preventDefault(); });
+    const sprayBtn = document.getElementById("btn-spray");
+    const sOn = (e) => { Sound.ensure(); heldSpray = true; if (e.cancelable) e.preventDefault(); };
+    const sOff = () => { heldSpray = false; };
+    sprayBtn.addEventListener("pointerdown", sOn); sprayBtn.addEventListener("pointerup", sOff); sprayBtn.addEventListener("pointercancel", sOff); sprayBtn.addEventListener("pointerleave", sOff);
     window.addEventListener("pointerdown", (e) => { Sound.ensure(); if (isCtl(e.target)) return; taps[e.pointerId] = { x: e.clientX, y: e.clientY, moved: false, truck: pickTruck(e.clientX, e.clientY) }; if (joyId === null && e.clientX <= window.innerWidth * 0.62) startJoy(e.pointerId, e.clientX, e.clientY); });
     window.addEventListener("pointermove", (e) => { const tp = taps[e.pointerId]; if (tp && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) > 10) tp.moved = true; if (e.pointerId === joyId) moveJoy(e.clientX, e.clientY); });
     const up = (e) => { const tp = taps[e.pointerId]; if (tp && !tp.moved && tp.truck) setActive(tp.truck); delete taps[e.pointerId]; if (e.pointerId === joyId) endJoy(); };
