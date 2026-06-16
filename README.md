@@ -6,9 +6,10 @@ dig, and dump dirt** to your heart's content. Built to feel great on a phone or
 tablet, with big touch controls — no reading required.
 
 There's no score and nothing to lose: it's an open-ended dirt sandbox for little
-truck fans. Every machine has its own engine rumble, and there are dirt plops,
-scoops, beeps and a "bucket full" ding — all synthesized in the browser, no
-sound files needed.
+truck fans. A whole **fleet of trucks shares the yard** — tap any truck to drive
+it — and they can **work together**: drive a loader or backhoe up to the dump
+truck and tip your bucket to fill its bed, then hop in the dump truck and haul
+the load away.
 
 It's a real **3D game** built on the **Babylon.js** engine (bundled in
 `vendor/`), with a Lego/Minecraft blocky look: the dirt is a field of real 3D
@@ -33,7 +34,9 @@ action finishes, open this on your phone:
 | **DIG button** | Hold to scoop dirt from in front of you into the bucket. |
 | **DUMP button** | Hold to pour the bucket back out into a pile. |
 | **Bulldozer blade** | Just drive — the bulldozer's blade pushes dirt forward into big piles. |
-| **Machine bar (top)** | Tap to switch between machines. |
+| **Tap a truck** | Switch to driving that truck (they all sit in the yard). |
+| **Machine bar (top)** | Or tap a name to jump to that truck. |
+| **Fill the dump truck** | Drive a loader/backhoe next to the dump truck and hold DUMP to tip dirt into its bed. |
 | **↺ Level** | Smooths the whole yard so you can start fresh. |
 | **🔊 / 🔇** | Turn sound on or off. |
 
