@@ -13,6 +13,8 @@
 
   const OUTLINE = 0x2a2018;
   const WINDOW = 0xbfe8f6;
+  // Filled at boot: per-machine layout info (e.g. beacon position) for animation.
+  const MACHINE_BUILD = {};
 
   // ---- Dirt field ----
   const dirt = new Float32Array(COLS * ROWS);
@@ -106,6 +108,11 @@
       g.fillStyle(0xffffff, 1); g.fillCircle(8, 8, 5);
       g.fillStyle(0xffffff, 0.5); g.fillCircle(8, 8, 8);
       g.generateTexture("spark", 16, 16); g.destroy();
+      // Flashing beacon light.
+      g = this.g();
+      g.fillStyle(0xfff3b0, 0.55); g.fillCircle(9, 9, 9);
+      g.fillStyle(0xffd84a, 1); g.fillCircle(9, 9, 5);
+      g.generateTexture("beacon", 18, 18); g.destroy();
     }
 
     makeShadow() {
@@ -194,9 +201,12 @@
       }
 
       // Details: beacon light + exhaust.
-      const lx = shape.bedBack ? 83 : 43;
-      this.circle(g, lx, shape.bedBack ? 13 : 12, 4, 0xffd84a, 3);
+      const lx = shape.bedBack ? 83 : 43, ly = shape.bedBack ? 13 : 12;
+      this.circle(g, lx, ly, 4, 0xffd84a, 3);
       g.fillStyle(0x3a352e, 1); g.fillRoundedRect(shape.bedBack ? 69 : 58, 7, 5, 12, 2);
+
+      // Remember the beacon spot (texture is 126x74, drawn from centre) for the flashing overlay.
+      MACHINE_BUILD[def.id] = { beacon: [lx - 63, ly - 37] };
 
       g.generateTexture("machine_" + def.id, 126, 74);
       g.destroy();
@@ -214,8 +224,9 @@
       this.px = WORLD_W / 2; this.py = WORLD_H - 140;
       this.bucket = 0;
       this.dirtDirty = true;
-      this.acting = { dig: false, dump: false, load: false };
-      this.lastDust = 0; this.snd = { dig: 0, dump: 0, beep: 0 }; this.wasFull = false;
+      this.acting = { dig: false, dump: false, load: false, doze: false };
+      this.lastDust = 0; this.lastDigPuff = 0; this.snd = { dig: 0, dump: 0, beep: 0 }; this.wasFull = false;
+      this.heading = -Math.PI / 2; this.animT = 0; this.popT = 0; this.baseScale = 0.92;
 
       // Ground + dirt + decorations.
       this.add.tileSprite(0, 0, WORLD_W, WORLD_H, "ground").setOrigin(0).setDepth(0);
@@ -242,14 +253,18 @@
         lifespan: 520, tint: 0xffe27a, frequency: -1, emitting: false,
       }).setDepth(8);
 
-      // Player.
+      // Player: a container (the "rig") holding the machine sprite + a flashing
+      // beacon, so it can chug and squash without disturbing the follow camera.
       this.shadow = this.add.image(this.px, this.py + 16, "shadow").setDepth(4);
-      this.machine = this.add.image(this.px, this.py, "machine_" + this.def.id).setDepth(5).setScale(0.92);
-      this.machine.rotation = -Math.PI / 2;
+      this.machine = this.add.image(0, 0, "machine_" + this.def.id);
+      this.beacon = this.add.image(0, 0, "beacon");
+      this.rig = this.add.container(this.px, this.py, [this.machine, this.beacon]).setDepth(5);
+      this.rig.setScale(this.baseScale);
+      this.rig.rotation = this.heading;
 
       this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
       this.cameras.main.setBackgroundColor(0x7fb4cb);
-      this.cameras.main.startFollow(this.machine, true, 0.12, 0.12);
+      this.cameras.main.startFollow(this.rig, true, 0.12, 0.12);
       this.cameras.main.setZoom(this.pickZoom());
       this.scale.on("resize", () => this.cameras.main.setZoom(this.pickZoom()));
 
@@ -274,13 +289,14 @@
       this.def = def;
       this.bucket = Math.min(this.bucket, def.capacity);
       this.machine.setTexture("machine_" + def.id);
+      const b = (MACHINE_BUILD[def.id] || {}).beacon || [-20, -25];
+      this.beacon.setPosition(b[0], b[1]);
       document.getElementById("machine-label").textContent = def.name;
-      document.querySelectorAll(".machine-btn").forEach((b) =>
-        b.classList.toggle("active", b.dataset.id === def.id));
+      document.querySelectorAll(".machine-btn").forEach((bn) =>
+        bn.classList.toggle("active", bn.dataset.id === def.id));
       document.getElementById("btn-dig").classList.toggle("off", def.dig === false);
       document.getElementById("btn-dump").classList.toggle("off", def.dump === false);
-      // A little pop.
-      this.tweens.add({ targets: this.machine, scale: { from: 0.6, to: 0.8 }, ease: "Back.out", duration: 240 });
+      this.popT = 1; // grow-pop on switch
       if (!silent) Sound.horn();
     }
 
@@ -290,7 +306,7 @@
     }
 
     tileFront(reach, angOff) {
-      const a = this.machine.rotation + (angOff || 0);
+      const a = this.heading + (angOff || 0);
       const x = this.px + Math.cos(a) * reach, y = this.py + Math.sin(a) * reach;
       return { c: Math.floor(x / TILE), r: Math.floor(y / TILE), x, y };
     }
@@ -299,7 +315,7 @@
     update(time, delta) {
       const dt = Math.min(0.05, delta / 1000);
       const def = this.def;
-      this.acting.dig = this.acting.dump = this.acting.load = false;
+      this.acting.dig = this.acting.dump = this.acting.load = this.acting.doze = false;
 
       // Combine keyboard + on-screen input.
       readKeyboard();
@@ -312,15 +328,15 @@
         this.px = clamp(this.px + input.mx * def.speed * dt, 18, WORLD_W - 18);
         this.py = clamp(this.py + input.my * def.speed * dt, 18, WORLD_H - 18);
         const target = Math.atan2(input.my, input.mx);
-        this.machine.rotation = Phaser.Math.Angle.RotateTo(this.machine.rotation, target, 0.28);
-        if (time - this.lastDust > 45) {
+        this.heading = Phaser.Math.Angle.RotateTo(this.heading, target, 0.28);
+        if (time - this.lastDust > 40) {
           const back = this.tileFront(-26, 0);
-          this.dust.emitParticleAt(back.x, back.y, 1);
+          this.dust.emitParticleAt(back.x + (Math.random() - 0.5) * 12, back.y + (Math.random() - 0.5) * 12, 1);
           this.lastDust = time;
         }
       }
-      this.machine.x = this.px; this.machine.y = this.py;
-      this.shadow.x = this.px; this.shadow.y = this.py + 16;
+      this.rig.setPosition(this.px, this.py);
+      this.shadow.setPosition(this.px, this.py + 16);
 
       // Bulldozer push.
       if (def.dozer && mag > 0.2) {
@@ -329,7 +345,7 @@
           const bi = di(blade.c, blade.r), ai = di(ahead.c, ahead.r);
           if (dirt[bi] > 0) {
             const moved = Math.min(dirt[bi], 5 * dt * mag, MAX_DIRT - dirt[ai]);
-            if (moved > 0) { dirt[bi] -= moved; dirt[ai] += moved; this.dirtDirty = true; }
+            if (moved > 0) { dirt[bi] -= moved; dirt[ai] += moved; this.dirtDirty = true; this.acting.doze = true; }
           }
         }
       }
@@ -373,6 +389,7 @@
       }
 
       if (this.dirtDirty) { this.redrawDirt(); this.dirtDirty = false; }
+      this.animateRig(time, dt, mag);
       this.audioStep(dt, mag);
 
       // HUD bucket meter + full sparkle.
@@ -381,6 +398,41 @@
       const full = this.bucket >= def.capacity - 0.02;
       if (full && !this.wasFull) this.spark.emitParticleAt(this.px, this.py, 10);
       this.wasFull = full;
+    }
+
+    animateRig(time, dt, mag) {
+      const driving = mag > 0.1;
+      const working = this.acting.dig || this.acting.dump || this.acting.load || this.acting.doze;
+
+      // Chug faster while driving, fastest while working, slow idle otherwise.
+      const rate = working ? 17 : driving ? 9 + mag * 7 : 3.2;
+      this.animT += dt * rate;
+      const s = Math.sin(this.animT);
+
+      // Grow-pop after switching machines.
+      this.popT = Math.max(0, this.popT - dt * 3.5);
+      const base = this.baseScale * (1 + 0.3 * this.popT * this.popT);
+
+      // Squash & stretch (chug); a touch more when driving or working.
+      const chug = working ? 0.07 : driving ? 0.05 : 0.013;
+      this.rig.scaleX = base * (1 + chug * s);
+      this.rig.scaleY = base * (1 - chug * s);
+
+      // Little working shimmy on top of the heading.
+      const wob = working ? 0.055 : 0;
+      this.rig.rotation = this.heading + wob * Math.sin(this.animT * 2.3);
+
+      // Flashing beacon.
+      const f = 0.5 + 0.5 * Math.sin(time * 0.016);
+      this.beacon.setAlpha(0.2 + 0.8 * f).setScale(0.85 + 0.3 * f);
+
+      // Puffs of dirt while digging.
+      if (this.acting.dig && time - this.lastDigPuff > 70) {
+        const t = this.toolTile();
+        this.dust.emitParticleAt(t.x, t.y, 1);
+        if (Math.random() < 0.5) this.clods.emitParticleAt(t.x, t.y, 1);
+        this.lastDigPuff = time;
+      }
     }
 
     audioStep(dt, mag) {
