@@ -10,10 +10,11 @@ truck fans. Every machine has its own engine rumble, and there are dirt plops,
 scoops, beeps and a "bucket full" ding — all synthesized in the browser, no
 sound files needed.
 
-It's built as a real 2D game on the **Phaser 3** engine (bundled in `vendor/`),
-with chunky cartoon machines, organic shaded dirt heaps, a follow camera, and
-dust / dirt-clod particles. All the art is generated in code — there are no
-image files to load.
+It's a real **3D game** built on the **Babylon.js** engine (bundled in
+`vendor/`), with a Lego/Minecraft blocky look: the dirt is a field of real 3D
+blocks you carve down and stack up, lit by sunlight with soft shadows, and the
+trucks are brick-built vehicles with studs and spinning wheels. All the models
+are generated in code — there are no image files to load.
 
 ## Play it on your phone
 
@@ -68,12 +69,12 @@ or simply open `index.html` in a browser.
 ## Project layout
 
 ```
-index.html         – page, control overlay, script tags
+index.html         – page, render canvas, control overlay, script tags
 styles.css         – layout and touch-control styling
-trucks.js          – machine definitions (speed, bucket size, mechanics, sprite shape)
+trucks.js          – machine definitions (speed, bucket size, mechanics, block shape)
 audio.js           – synthesized engine/dig/dump/beep sounds (no audio files)
-game.js            – Phaser game: sprite generation, dirt field, driving, dig/dump/doze
-vendor/phaser.min.js – the Phaser 3 game engine (bundled so it always loads)
+game.js            – Babylon.js game: 3D blocks, truck models, driving, dig/dump/doze
+vendor/babylon.js  – the Babylon.js engine (bundled so it always loads)
 .github/workflows/deploy.yml – publishes the game to GitHub Pages
 ```
 

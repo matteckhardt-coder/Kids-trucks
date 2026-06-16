@@ -3,23 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="description" content="Dirt Diggers — a kids' game where you drive cartoon bulldozers, dump trucks, backhoes and loaders to move dirt around." />
+  <meta name="description" content="Dirt Diggers — a kids' 3D game where you drive blocky construction trucks and dig real dirt." />
   <meta name="theme-color" content="#8a6d3b" />
-  <title>🚜 Dirt Diggers</title>
+  <title>🚜 Dirt Diggers 3D</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Phaser renders the game world here -->
-  <div id="game-root"></div>
+  <canvas id="renderCanvas" touch-action="none"></canvas>
 
-  <!-- Loading splash (hidden once the game boots) -->
   <div id="splash" class="splash">
     <div class="splash-truck">🚜</div>
     <div class="splash-title">Dirt Diggers</div>
-    <div class="splash-tip">Loading the dirt yard…</div>
+    <div class="splash-tip">Building the dirt yard…</div>
   </div>
 
-  <!-- Touch controls overlay -->
   <div id="ui" class="ui hidden">
     <div id="machine-picker" class="machine-picker" aria-label="Choose a machine"></div>
 
@@ -44,7 +41,7 @@
     </div>
   </div>
 
-  <script src="vendor/phaser.min.js"></script>
+  <script src="vendor/babylon.js"></script>
   <script src="trucks.js"></script>
   <script src="audio.js"></script>
   <script src="game.js"></script>
