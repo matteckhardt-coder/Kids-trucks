@@ -198,15 +198,95 @@
   function frontCell(t, reach, side) { const a = t.heading + (side ? Math.PI / 2 : 0); return { c: w2c(t.x + Math.sin(a) * reach), r: w2r(t.z + Math.cos(a) * reach) }; }
   function toolCell(t) { return frontCell(t, REACH, false); }
 
-  // ---- Goal ----
-  const goal = { target: null, cheering: 0, delivered: 0 };
-  function setGoal() { goal.target = machines.find((m) => m.def.id === "dumptruck"); }
-  function cheer() {
-    goal.cheering = 2.2;
-    const el = document.getElementById("cheer"); el.textContent = ["Great job! 🎉", "Truck loaded! 🚚", "Awesome! ⭐", "Nice digging! 💪"][goal.delivered % 4]; el.classList.add("show");
-    confetti.emitter = new B.Vector3(goal.target.x, goal.target.rideY + 2, goal.target.z); confetti.manualEmitCount = 120;
+  // ---- Buried treasures ----
+  const treasures = [];
+  const TKIND = [0x37d0e6, 0xff5d6c, 0xffd23f, 0x57d98a, 0xc06cff, 0xff9a3a];
+  function placeTreasures(n) {
+    for (let i = 0; i < n; i++) {
+      const c = 5 + ((Math.random() * (GRID - 10)) | 0), r = 5 + ((Math.random() * (GRID - 10)) | 0), col = TKIND[i % TKIND.length];
+      const m = B.MeshBuilder.CreatePolyhedron("treasure" + i, { type: 1, size: 0.7 }, scene);
+      const mt = new B.PBRMaterial("tre" + i, scene); mt.albedoColor = hex(col); mt.emissiveColor = hex(col).scale(0.35); mt.metallic = 0.25; mt.roughness = 0.15;
+      m.material = mt; m.position.set(cellX(c), BASE - 3, cellZ(r)); m.setEnabled(false); m.isPickable = false; shadow.addShadowCaster(m);
+      const mk = B.MeshBuilder.CreateDisc("tmk" + i, { radius: 0.95, tessellation: 22 }, scene);
+      mk.rotation.x = Math.PI / 2; mk.position.set(cellX(c), BASE + 0.06, cellZ(r));
+      const mm = new B.PBRMaterial("tmk" + i, scene); mm.albedoColor = hex(0xffe24a); mm.emissiveColor = hex(0xffcf3a); mm.alpha = 0.55; mk.material = mm; mk.isPickable = false;
+      treasures.push({ c, r, mesh: m, marker: mk, found: false, y: BASE - 3 });
+    }
+  }
+  function countFound() { let k = 0; for (const t of treasures) if (t.found) k++; return k; }
+  function updateTreasures(dt) {
+    for (const t of treasures) {
+      let dug = false;
+      if (!t.found) for (let dr = -2; dr <= 2 && !dug; dr++) for (let dc = -2; dc <= 2 && !dug; dc++) { if (inB(t.c + dc, t.r + dr) && dirt[di(t.c + dc, t.r + dr)] <= -0.4) dug = true; }
+      if (dug) {
+        t.found = true; if (t.marker) { t.marker.dispose(); t.marker = null; }
+        puff(cellX(t.c), ty(t.c, t.r) + 0.5, cellZ(t.r), 16);
+        confetti.emitter = new B.Vector3(cellX(t.c), ty(t.c, t.r) + 1, cellZ(t.r)); confetti.manualEmitCount = 50; Sound.ding();
+      }
+      if (t.found) { const tgt = ty(t.c, t.r) + 0.95; t.y += (tgt - t.y) * Math.min(1, dt * 4); t.mesh.position.y = t.y + Math.sin(performance.now() * 0.004) * 0.1; t.mesh.rotation.y += dt * 1.6; }
+      else if (t.marker) { const p = 1 + Math.sin(performance.now() * 0.005) * 0.12; t.marker.scaling.set(p, p, p); }
+    }
+  }
+
+  // ---- Build zone (flag) + grown buildings ----
+  let zone = null, builtCount = 0;
+  function newZone() {
+    const a = Math.random() * 6.28, rd = 7 + Math.random() * (HALF - 12), x = Math.cos(a) * rd, z = Math.sin(a) * rd;
+    const pole = B.MeshBuilder.CreateCylinder("pole", { diameter: 0.18, height: 2.4 }, scene); pole.position.set(x, BASE + 1.2, z); pole.material = pbr(0x7a4a25, 0.7); pole.isPickable = false; shadow.addShadowCaster(pole);
+    const flag = B.MeshBuilder.CreateBox("flag", { width: 1.2, height: 0.75, depth: 0.08 }, scene); flag.position.set(x + 0.6, BASE + 2.0, z); const fm = new B.PBRMaterial("fm", scene); fm.albedoColor = hex(0xff3b3b); fm.emissiveColor = hex(0x4a0000); flag.material = fm; flag.isPickable = false;
+    const ring = B.MeshBuilder.CreateTorus("ring", { diameter: 6, thickness: 0.35, tessellation: 30 }, scene); ring.position.set(x, BASE + 0.07, z); const rm = new B.PBRMaterial("rm", scene); rm.albedoColor = hex(0xffd23f); rm.emissiveColor = hex(0x6a4d00); ring.material = rm; ring.isPickable = false;
+    zone = { x, z, nodes: [pole, flag, ring] };
+  }
+  const GROWN = ["building-type-a", "building-type-b", "building-type-c", "building-type-e"];
+  function growBuilding(x, z) {
+    const root = instance(GROWN[builtCount % GROWN.length]); const holder = new B.TransformNode("grown", scene); root.parent = holder;
+    const { min, max } = root.getHierarchyBoundingVectors(true); const sc = 8 / Math.max(max.x - min.x, max.z - min.z);
+    holder.position.set(x, BASE - min.y * sc, z); holder.rotation.y = Math.random() * 6 + FACE;
+    root.getChildMeshes().forEach((me) => { shadow.addShadowCaster(me); me.isPickable = false; });
+    holder.scaling.setAll(0.01); let s = 0;
+    const obs = scene.onBeforeRenderObservable.add(() => { s += 0.05; const v = Math.min(1, s), e = 1 - Math.pow(1 - v, 3); holder.scaling.setAll(sc * e); if (v >= 1) scene.onBeforeRenderObservable.remove(obs); });
+  }
+  function deliver(hauler) {
+    hauler.bucket = 0;
+    puff(zone.x, BASE + 1, zone.z, 30); confetti.emitter = new B.Vector3(zone.x, BASE + 2, zone.z); confetti.manualEmitCount = 120;
+    growBuilding(zone.x, zone.z); zone.nodes.forEach((n) => n.dispose()); zone = null; builtCount++;
+    completeJob();
+  }
+
+  // ---- Jobs ----
+  const JOBS = ["treasure", "fill", "deliver"];
+  let jobIdx = 0, stars = 0, jobActive = true, treBase = 0, cheerT = 0, arrow = null;
+  function dumptruck() { return machines.find((m) => m.def.id === "dumptruck"); }
+  function gtext(s) { document.getElementById("goal-text").textContent = s; }
+  function makeArrow() { arrow = B.MeshBuilder.CreateCylinder("arrow", { diameterTop: 0, diameterBottom: 1.2, height: 1.4, tessellation: 6 }, scene); arrow.rotation.x = Math.PI; const am = new B.PBRMaterial("am", scene); am.albedoColor = hex(0xffe24a); am.emissiveColor = hex(0x7a5d00); arrow.material = am; arrow.isPickable = false; arrow.setEnabled(false); }
+  function startJob() {
+    jobActive = true; const j = JOBS[jobIdx % JOBS.length];
+    if (j === "treasure") { gtext("Dig where it sparkles to find treasure! 💎"); treBase = countFound(); }
+    else if (j === "fill") { gtext("Fill the dump truck with dirt! 🚚"); }
+    else if (j === "deliver") { gtext("Drive the full dump truck to the 🚩 flag!"); if (!zone) newZone(); }
+  }
+  function completeJob() {
+    if (!jobActive) return; jobActive = false; stars++;
+    document.getElementById("stars").textContent = "⭐ " + stars;
+    cheerT = 2.0; const el = document.getElementById("cheer"); el.textContent = ["Great job! 🎉", "Awesome! ⭐", "You did it! 💪", "Nice work! 🚜"][stars % 4]; el.classList.add("show");
     Sound.ding(); setTimeout(() => Sound.horn(), 250);
-    goal.delivered++;
+    setTimeout(() => { jobIdx++; startJob(); }, 2100);
+  }
+  function checkJobs(dt) {
+    if (cheerT > 0) { cheerT -= dt; if (cheerT <= 0) document.getElementById("cheer").classList.remove("show"); }
+    let prog = 0; const j = JOBS[jobIdx % JOBS.length];
+    if (jobActive) {
+      if (j === "treasure") { prog = clamp(countFound() - treBase, 0, 1); if (prog >= 1) completeJob(); }
+      else if (j === "fill") { const d = dumptruck(); prog = d.bucket / d.def.capacity; if (prog >= 0.999) completeJob(); }
+      else if (j === "deliver") { const d = dumptruck(); const inZone = zone && Math.hypot(d.x - zone.x, d.z - zone.z) < 3.4 && d.bucket > d.def.capacity * 0.5; prog = inZone ? 1 : d.bucket / d.def.capacity; if (inZone) deliver(d); }
+      document.getElementById("goal-fill").style.width = clamp(prog * 100, 0, 100) + "%";
+    }
+    // Guiding arrow.
+    let tx = null, tz = null;
+    if (j === "treasure") { let bd = 1e9; for (const tr of treasures) { if (tr.found) continue; const d = Math.hypot(tr.mesh.position.x - active.x, tr.mesh.position.z - active.z); if (d < bd) { bd = d; tx = tr.mesh.position.x; tz = tr.mesh.position.z; } } }
+    else if (j === "fill") { const d = dumptruck(); tx = d.x; tz = d.z; }
+    else if (j === "deliver" && zone) { tx = zone.x; tz = zone.z; }
+    if (arrow) { if (tx == null || !jobActive) arrow.setEnabled(false); else { arrow.setEnabled(true); arrow.position.set(tx, BASE + 3.4 + Math.sin(performance.now() * 0.005) * 0.25, tz); } }
   }
 
   // ---- Update ----
@@ -255,15 +335,9 @@
     if (t.acting.dump && t.snd.dump <= 0) { Sound.dump(); t.snd.dump = 0.14; }
     if (def.scoop === "driveover" && mag > 0.25 && t.snd.beep <= 0) { Sound.beep(); t.snd.beep = 0.6; }
 
-    // Goal: fill the dump truck.
-    if (goal.target) {
-      const frac = goal.target.bucket / goal.target.def.capacity;
-      document.getElementById("goal-fill").style.width = clamp(frac * 100, 0, 100) + "%";
-      if (goal.cheering > 0) {
-        goal.cheering -= dt;
-        if (goal.cheering <= 0) { document.getElementById("cheer").classList.remove("show"); goal.target.bucket = 0; document.getElementById("goal-text").textContent = "Fill the dump truck again!"; }
-      } else if (goal.target.bucket >= goal.target.def.capacity - 0.05) cheer();
-    }
+    // Treasures + job loop.
+    updateTreasures(dt);
+    checkJobs(dt);
     document.getElementById("bucket-fill").style.width = clamp((t.bucket / (def.capacity || 1)) * 100, 0, 100) + "%";
   }
 
@@ -329,7 +403,8 @@
       FLEET.forEach(spawnVehicle);
       active = machines.find((m) => m.def.id === "loader") || machines[0];
       camera.position.set(active.x + CAM_OFFSET.x, CAM_OFFSET.y, active.z + CAM_OFFSET.z); camLook.set(active.x, BASE, active.z);
-      setGoal(); buildControls(); setActive(active, true);
+      buildControls(); setActive(active, true);
+      placeTreasures(6); makeArrow(); newZone(); startJob();
     } catch (e) {
       if (tip) tip.textContent = "Failed to load: " + e;
       console.error(e); return;
