@@ -252,56 +252,139 @@
     b.position.set(x, y, z); b.material = material; b.parent = parent; b.truckRef = t;
     shadow.addShadowCaster(b); return b;
   }
+  function tcyl(t, name, diam, h, x, y, z, axis, material, parent) {
+    const c = B.MeshBuilder.CreateCylinder(name, { diameter: diam, height: h, tessellation: 14 }, scene);
+    c.position.set(x, y, z); c.material = material; c.parent = parent; c.truckRef = t;
+    if (axis === "x") c.rotation.z = Math.PI / 2; else if (axis === "z") c.rotation.x = Math.PI / 2;
+    shadow.addShadowCaster(c); return c;
+  }
+  function addWheel(ctx, wx, wz, wr) {
+    const { t, root, tire, metal } = ctx;
+    const wp = new B.TransformNode("wp", scene); wp.position.set(wx, wr, wz); wp.parent = root;
+    const cyl = B.MeshBuilder.CreateCylinder("wheel", { diameter: wr * 2, height: 0.5, tessellation: 16 }, scene);
+    cyl.rotation.z = Math.PI / 2; cyl.material = tire; cyl.parent = wp; cyl.truckRef = t;
+    const hub = B.MeshBuilder.CreateCylinder("hub", { diameter: wr, height: 0.52, tessellation: 10 }, scene);
+    hub.rotation.z = Math.PI / 2; hub.material = metal; hub.parent = wp; hub.truckRef = t;
+    shadow.addShadowCaster(cyl); t.wheels.push(wp);
+  }
+  function addCab(ctx, x, y, z, w, h, d, beacon) {
+    const { t, accent, root } = ctx;
+    tbox(t, "cab", w, h, d, x, y, z, accent, root);
+    tbox(t, "glassF", w * 0.82, h * 0.5, 0.08, x, y + 0.06, z + d / 2 + 0.01, glassMat, root);
+    tbox(t, "glassL", 0.08, h * 0.5, d * 0.72, x + w / 2 + 0.01, y + 0.06, z, glassMat, root);
+    tbox(t, "glassR", 0.08, h * 0.5, d * 0.72, x - w / 2 - 0.01, y + 0.06, z, glassMat, root);
+    if (beacon) t.beacon = tbox(t, "beacon", 0.24, 0.2, 0.24, x - w / 2 + 0.18, y + h / 2 + 0.16, z, mat(0xffb024, 0.3), root);
+  }
+  function addTrack(ctx, sx, len) {
+    const { t, root, dark, metal } = ctx;
+    const node = new B.TransformNode("track", scene); node.parent = root; node.position.set(sx * 1.02, 0.45, 0);
+    tbox(t, "belt", 0.62, 0.8, len, 0, 0, 0, dark, node);
+    tcyl(t, "re1", 0.82, 0.66, 0, -0.04, len / 2 - 0.15, "x", metal, node);
+    tcyl(t, "re2", 0.82, 0.66, 0, -0.04, -(len / 2 - 0.15), "x", metal, node);
+    for (let i = -1; i <= 1; i++) tcyl(t, "rw", 0.5, 0.68, 0, -0.16, i * len * 0.27, "x", metal, node);
+  }
+  function pivotNode(root, x, y, z) { const p = new B.TransformNode("toolp", scene); p.position.set(x, y, z); p.parent = root; return p; }
+
+  function buildWheelLoader(ctx) {
+    const { t, root, body, dark, metal } = ctx;
+    tbox(t, "rear", 2.0, 1.05, 1.7, 0, 1.05, -0.75, body, root);
+    tbox(t, "front", 1.9, 0.85, 1.5, 0, 0.95, 0.8, body, root);
+    addCab(ctx, 0, 1.95, -0.45, 1.5, 1.0, 1.2, true);
+    tbox(t, "grille", 1.75, 0.7, 0.12, 0, 1.05, -1.62, dark, root);
+    tcyl(t, "stack", 0.16, 0.8, 0.78, 2.05, -0.8, null, metal, root);
+    const p = pivotNode(root, 0, 1.0, 1.55); t.toolPivot = p; t.toolKind = "bucket";
+    tbox(t, "armL", 0.22, 0.22, 1.5, 0.72, 0.05, -0.25, metal, p);
+    tbox(t, "armR", 0.22, 0.22, 1.5, -0.72, 0.05, -0.25, metal, p);
+    tbox(t, "bucket", 2.15, 0.6, 1.0, 0, -0.35, 0.6, metal, p);
+    tbox(t, "bucketLip", 2.15, 0.14, 0.34, 0, -0.62, 1.05, dark, p);
+    tcyl(t, "hydL", 0.15, 1.2, 0.45, 0.34, -0.2, "z", metal, p);
+    tcyl(t, "hydR", 0.15, 1.2, -0.45, 0.34, -0.2, "z", metal, p);
+    for (const [wx, wz] of [[1.12, -0.95], [1.12, 1.0], [-1.12, -0.95], [-1.12, 1.0]]) addWheel(ctx, wx, wz, 0.66);
+  }
+  function buildSkid(ctx) {
+    const { t, root, body, dark, metal } = ctx;
+    tbox(t, "chassis", 1.7, 1.1, 2.2, 0, 1.0, 0, body, root);
+    addCab(ctx, 0, 1.85, -0.1, 1.3, 0.9, 1.15, true);
+    const p = pivotNode(root, 0, 1.05, 1.15); t.toolPivot = p; t.toolKind = "bucket";
+    tbox(t, "armL", 0.2, 0.2, 1.7, 0.92, 0.0, -0.5, metal, p);
+    tbox(t, "armR", 0.2, 0.2, 1.7, -0.92, 0.0, -0.5, metal, p);
+    tbox(t, "bucket", 1.7, 0.5, 0.85, 0, -0.3, 0.5, metal, p);
+    tbox(t, "lip", 1.7, 0.13, 0.3, 0, -0.52, 0.88, dark, p);
+    for (const [wx, wz] of [[0.95, -0.72], [0.95, 0.72], [-0.95, -0.72], [-0.95, 0.72]]) addWheel(ctx, wx, wz, 0.55);
+  }
+  function buildSideLoader(ctx) {
+    const { t, root, body, dark, metal } = ctx;
+    tbox(t, "chassis", 2.0, 0.9, 3.5, 0, 0.95, 0, body, root);
+    addCab(ctx, 0, 1.8, 1.05, 1.5, 0.95, 1.2, true);
+    tbox(t, "deck", 1.9, 0.22, 1.9, 0, 1.45, -0.85, dark, root);
+    const p = pivotNode(root, 1.2, 0.85, 0); t.toolPivot = p; t.toolKind = "side";
+    tbox(t, "arm", 0.22, 0.22, 2.5, 0.0, 0.25, 0, metal, p);
+    tbox(t, "sidebkt", 0.8, 0.55, 2.5, 0.5, -0.2, 0, metal, p);
+    tbox(t, "lip", 0.3, 0.14, 2.5, 0.86, -0.42, 0, dark, p);
+    for (const [wx, wz] of [[1.12, -1.25], [1.12, 1.25], [-1.12, -1.25], [-1.12, 1.25]]) addWheel(ctx, wx, wz, 0.64);
+  }
+  function buildDumpTruck(ctx) {
+    const { t, root, accent, dark, metal } = ctx;
+    tbox(t, "chassis", 2.0, 0.5, 3.7, 0, 0.78, 0, dark, root);
+    tbox(t, "cab", 1.95, 1.35, 1.2, 0, 1.55, 1.25, accent, root);
+    tbox(t, "glassF", 1.6, 0.6, 0.1, 0, 1.78, 1.86, glassMat, root);
+    tbox(t, "grille", 1.75, 0.6, 0.12, 0, 1.0, 1.86, metal, root);
+    tbox(t, "hlL", 0.3, 0.2, 0.1, 0.72, 1.0, 1.87, mat(0xfff2b0, 0.2), root);
+    tbox(t, "hlR", 0.3, 0.2, 0.1, -0.72, 1.0, 1.87, mat(0xfff2b0, 0.2), root);
+    tcyl(t, "stackL", 0.16, 1.3, 0.82, 1.75, 0.5, null, metal, root);
+    tcyl(t, "stackR", 0.16, 1.3, -0.82, 1.75, 0.5, null, metal, root);
+    t.beacon = tbox(t, "beacon", 0.24, 0.2, 0.24, -0.72, 2.3, 1.25, mat(0xffb024, 0.3), root);
+    const p = pivotNode(root, 0, 1.05, -1.75); t.toolPivot = p; t.toolKind = "bed";
+    tbox(t, "bed", 2.15, 1.0, 2.5, 0, 0.42, 1.2, accent, p);
+    tbox(t, "bedIn", 1.95, 0.85, 2.3, 0, 0.52, 1.2, dark, p);
+    t.bedDirt = tbox(t, "beddirt", 1.8, 0.6, 2.1, 0, -0.05, 1.2, mat(0x5e3f20, 1.0), p);
+    t.bedDirt.setEnabled(false);
+    addWheel(ctx, 1.08, 1.15, 0.6); addWheel(ctx, -1.08, 1.15, 0.6);
+    for (const wz of [-0.5, -1.3]) { addWheel(ctx, 1.18, wz, 0.6); addWheel(ctx, 0.62, wz, 0.6); addWheel(ctx, -1.18, wz, 0.6); addWheel(ctx, -0.62, wz, 0.6); }
+  }
+  function buildDozer(ctx) {
+    const { t, root, body, dark, metal } = ctx;
+    addTrack(ctx, 1, 2.9); addTrack(ctx, -1, 2.9);
+    tbox(t, "hull", 1.8, 0.75, 2.5, 0, 1.2, -0.1, body, root);
+    addCab(ctx, 0, 2.0, -0.55, 1.3, 0.9, 1.1, true);
+    tcyl(t, "stack", 0.16, 0.9, 0.6, 2.1, 0.45, null, metal, root);
+    const p = pivotNode(root, 0, 0.95, 1.35); t.toolPivot = p; t.toolKind = "blade";
+    tbox(t, "blade", 2.8, 1.45, 0.32, 0, 0, 0.5, metal, p);
+    tbox(t, "bladeEdge", 2.8, 0.26, 0.36, 0, -0.62, 0.5, dark, p);
+    tbox(t, "pushL", 0.22, 0.22, 1.3, 0.85, -0.1, -0.2, metal, p);
+    tbox(t, "pushR", 0.22, 0.22, 1.3, -0.85, -0.1, -0.2, metal, p);
+    tbox(t, "ripL", 0.18, 0.8, 0.18, 0.55, 0.55, -2.0, metal, root);
+    tbox(t, "ripR", 0.18, 0.8, 0.18, -0.55, 0.55, -2.0, metal, root);
+  }
+  function buildExcavator(ctx) {
+    const { t, root, body, dark, metal } = ctx;
+    addTrack(ctx, 1, 3.1); addTrack(ctx, -1, 3.1);
+    tbox(t, "house", 2.0, 1.05, 2.3, 0, 1.55, -0.25, body, root);
+    tbox(t, "counter", 1.95, 0.95, 0.75, 0, 1.45, -1.45, dark, root);
+    addCab(ctx, 0.55, 2.1, 0.45, 0.95, 0.95, 1.0, true);
+    const p = pivotNode(root, 0, 1.45, 0.7); t.toolPivot = p; t.toolKind = "arm";
+    tbox(t, "boom", 0.34, 0.34, 2.3, 0, 0.72, 0.75, metal, p);
+    tbox(t, "dipper", 0.3, 1.5, 0.3, 0, 0.05, 1.78, metal, p);
+    tbox(t, "bucket", 0.95, 0.7, 0.7, 0, -0.72, 1.95, metal, p);
+    tbox(t, "bucketLip", 0.95, 0.16, 0.3, 0, -1.02, 2.12, dark, p);
+    tcyl(t, "hyd", 0.16, 1.7, 0.0, 0.6, 0.95, "z", metal, p);
+  }
+
   function buildTruckMeshes(t) {
-    const def = t.def, shape = def.shape || {};
+    const def = t.def;
     const root = new B.TransformNode("truck_" + def.id, scene);
-    const body = mat(def.color, 0.45), accent = mat(def.accent, 0.45), dark = mat(0x2a2620, 0.6), tire = mat(0x141312, 0.95), metal = mat(0x9aa0a6, 0.35);
-
-    tbox(t, "chassis", 2.2, 0.7, 3.2, 0, 0.95, 0, body, root);
-    const cabZ = shape.bedBack ? 0.9 : -0.45;
-    tbox(t, "cab", 1.7, 1.0, 1.3, 0, 1.78, cabZ, accent, root);
-    tbox(t, "glassF", 1.45, 0.6, 0.1, 0, 1.92, cabZ + 0.66, glassMat, root);
-    tbox(t, "glassB", 1.45, 0.6, 0.1, 0, 1.92, cabZ - 0.66, glassMat, root);
-    tbox(t, "pipe", 0.18, 0.7, 0.18, 0.72, 1.95, cabZ - 0.45, metal, root);
-    tbox(t, "lightL", 0.22, 0.16, 0.1, 0.62, 1.0, 1.62, mat(0xfff2b0, 0.2), root);
-    tbox(t, "lightR", 0.22, 0.16, 0.1, -0.62, 1.0, 1.62, mat(0xfff2b0, 0.2), root);
-    t.beacon = tbox(t, "beacon", 0.3, 0.24, 0.3, -0.5, 2.4, cabZ, mat(0xffb024, 0.3), root);
-
-    let toolPivot = null, toolKind = null;
-    const pivot = (x, y, z) => { const p = new B.TransformNode("toolp", scene); p.position.set(x, y, z); p.parent = root; return p; };
-    if (shape.bladeFront) { toolPivot = pivot(0, 0.85, 1.45); toolKind = "blade"; tbox(t, "blade", 2.7, 1.35, 0.3, 0, 0, 0.5, metal, toolPivot); tbox(t, "bladeEdge", 2.7, 0.2, 0.34, 0, -0.62, 0.5, dark, toolPivot); }
-    if (shape.bucketFront) {
-      toolPivot = pivot(0, 1.0, 1.5); toolKind = "bucket";
-      tbox(t, "arm", 0.22, 0.22, 1.1, 0.64, 0, 0.0, metal, toolPivot);
-      tbox(t, "arm2", 0.22, 0.22, 1.1, -0.64, 0, 0.0, metal, toolPivot);
-      tbox(t, "bucket", 2.0, 0.55, 0.9, 0, -0.34, 0.62, metal, toolPivot);
-      tbox(t, "bucketLip", 2.0, 0.14, 0.32, 0, -0.6, 0.98, dark, toolPivot);
-    }
-    if (shape.bedBack) {
-      toolPivot = pivot(0, 1.05, -1.55); toolKind = "bed";
-      tbox(t, "bed", 2.1, 1.0, 2.1, 0, 0.42, 0.95, accent, toolPivot);
-      tbox(t, "bedIn", 1.85, 0.85, 1.85, 0, 0.5, 0.95, dark, toolPivot);
-      t.bedDirt = tbox(t, "beddirt", 1.7, 0.6, 1.7, 0, -0.075, 0.95, mat(0x5e3f20, 1.0), toolPivot);
-      t.bedDirt.setEnabled(false);
-    }
-    if (shape.armBack) { tbox(t, "boom", 0.32, 0.32, 1.8, 0, 1.65, -1.95, metal, root); tbox(t, "boom2", 0.32, 1.3, 0.32, 0, 1.15, -2.75, metal, root); tbox(t, "dipper", 1.0, 0.5, 0.45, 0, 0.45, -2.85, dark, root); }
-    if (shape.sideBucket) { toolPivot = pivot(1.25, 0.7, 0); toolKind = "side"; tbox(t, "sidebkt", 0.75, 0.55, 2.5, 0.5, -0.2, 0, metal, toolPivot); tbox(t, "sidelip", 0.3, 0.14, 2.5, 0.86, -0.42, 0, dark, toolPivot); }
-    t.toolPivot = toolPivot; t.toolKind = toolKind;
-
-    let layout;
-    if (shape.tracks) layout = [[1.18, -1.0], [1.18, 1.0], [-1.18, -1.0], [-1.18, 1.0]];
-    else if (shape.wheels === "twin") layout = [[1.18, -1.1], [1.18, 0], [1.18, 1.1], [-1.18, -1.1], [-1.18, 0], [-1.18, 1.1]];
-    else layout = [[1.18, -1.05], [1.18, 1.05], [-1.18, -1.05], [-1.18, 1.05]];
-    const wr = shape.wheels === "small" ? 0.52 : 0.62;
-    t.wheels = [];
-    for (const [wx, wz] of layout) {
-      const wp = new B.TransformNode("wp", scene); wp.position.set(wx, wr, wz); wp.parent = root;
-      const cyl = B.MeshBuilder.CreateCylinder("wheel", { diameter: wr * 2, height: 0.5, tessellation: 16 }, scene);
-      cyl.rotation.z = Math.PI / 2; cyl.material = tire; cyl.parent = wp; cyl.truckRef = t;
-      const hub = B.MeshBuilder.CreateCylinder("hub", { diameter: wr, height: 0.52, tessellation: 10 }, scene);
-      hub.rotation.z = Math.PI / 2; hub.material = metal; hub.parent = wp; hub.truckRef = t;
-      shadow.addShadowCaster(cyl); t.wheels.push(wp);
-    }
+    const ctx = {
+      t, root,
+      body: mat(def.color, 0.4), accent: mat(def.accent, 0.4), dark: mat(0x23201b, 0.7),
+      metal: mat(0x8e949b, 0.32), tire: mat(0x141312, 0.95),
+    };
+    t.wheels = []; t.toolPivot = null; t.toolKind = null; t.bedDirt = null; t.beacon = null;
+    if (def.id === "backhoe") buildExcavator(ctx);
+    else if (def.id === "bulldozer") buildDozer(ctx);
+    else if (def.id === "dumptruck") buildDumpTruck(ctx);
+    else if (def.id === "skidsteer") buildSkid(ctx);
+    else if (def.id === "sideloader") buildSideLoader(ctx);
+    else buildWheelLoader(ctx);
     root.position.set(t.x, BASE, t.z); root.rotation.y = t.heading; t.root = root;
   }
 
@@ -391,7 +474,7 @@
     }
     if (input.dump && def.dump !== false && t.bucket > 0) {
       const tc = toolCell(t), tx = cellX(tc.c), tz = cellZ(tc.r);
-      const truck = machines.find((m) => m !== t && m.def.scoop === "driveover" && m.bucket < m.def.capacity - 0.01 && Math.hypot(m.x - tx, m.z - tz) < 3.4);
+      const truck = machines.find((m) => m !== t && m.def.scoop === "driveover" && m.bucket < m.def.capacity - 0.01 && (Math.hypot(m.x - tx, m.z - tz) < 3.8 || Math.hypot(m.x - t.x, m.z - t.z) < 5.0));
       if (truck) { const give = Math.min(def.digRate * dt, t.bucket, truck.def.capacity - truck.bucket); if (give > 0.0001) { t.bucket -= give; truck.bucket += give; t.acting.dump = true; if (Math.random() < 0.3) puff(truck.x, truck.rideY + 1.7, truck.z, 2); } }
       else if (inBounds(tc.c, tc.r)) {
         if (def.spread) {
@@ -441,6 +524,7 @@
       if (kind === "bucket" || kind === "side") { if (m.acting.dig || m.acting.load) target = -0.55 - 0.18 * Math.sin(m.animT * 12); else if (m.acting.dump) target = 0.8; }
       else if (kind === "bed") target = m.acting.dump ? -1.0 : 0;
       else if (kind === "blade") target = m.acting.doze ? -0.1 + 0.05 * Math.sin(m.animT * 16) : 0;
+      else if (kind === "arm") target = (m.acting.dig || m.acting.load) ? 0.5 + 0.12 * Math.sin(m.animT * 8) : 0;
       m.toolPivot.rotation.x += (target - m.toolPivot.rotation.x) * Math.min(1, dt * 10);
     }
     if (m.bedDirt) { const fill = m.bucket / def.capacity; m.bedDirt.setEnabled(fill > 0.02); m.bedDirt.scaling.y = Math.max(0.04, fill); m.bedDirt.position.y = -0.075 + 0.3 * fill; }
