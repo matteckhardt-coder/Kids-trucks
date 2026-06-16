@@ -103,13 +103,60 @@
   let blocksDirty = false;
   function touchCell(c, r) { if (inBounds(c, r)) { writeCell(c, r); blocksDirty = true; } }
 
-  // ---- Decorative corner cones for charm ----
-  function buildFrame() {
+  // ---- Environment: grassy lot, trees, buildings, rocks, clouds ----
+  function buildEnvironment() {
+    const gm = new B.StandardMaterial("grassMat", scene);
+    gm.diffuseColor = hex(0x6cb24a); gm.specularColor = new B.Color3(0, 0, 0);
+    // Grass only around the dirt field (so it never caps holes you dig).
+    const OUT = 100;
+    const patch = (cx, cz, w, d) => {
+      const g = B.MeshBuilder.CreateGround("grass", { width: w, height: d }, scene);
+      g.position.set(cx, BASE - 0.05, cz); g.material = gm; g.receiveShadows = true;
+    };
+    patch(0, (HALF + OUT) / 2, 2 * OUT, OUT - HALF);
+    patch(0, -(HALF + OUT) / 2, 2 * OUT, OUT - HALF);
+    patch((HALF + OUT) / 2, 0, OUT - HALF, 2 * HALF);
+    patch(-(HALF + OUT) / 2, 0, OUT - HALF, 2 * HALF);
+
+    scene.fogMode = B.Scene.FOGMODE_EXP2; scene.fogColor = hex(0x9fcfe0); scene.fogDensity = 0.006;
+
+    const trunkMat = mat(0x7a5230), leaf = mat(0x4f9e3a), leaf2 = mat(0x63bd4a), rock = mat(0x8d8d8d);
+    function tree(x, z, s) {
+      s = s || 1;
+      const t = B.MeshBuilder.CreateBox("trunk", { width: 0.6 * s, height: 1.6 * s, depth: 0.6 * s }, scene);
+      t.position.set(x, BASE + 0.8 * s, z); t.material = trunkMat; shadow.addShadowCaster(t);
+      for (const [oy, sz, m] of [[1.95, 1.8, leaf], [2.8, 1.25, leaf2]]) {
+        const l = B.MeshBuilder.CreateBox("leaf", { size: sz * s }, scene);
+        l.position.set(x, BASE + oy * s, z); l.material = m; l.receiveShadows = true; shadow.addShadowCaster(l);
+      }
+    }
+    function building(x, z, w, d, h, colA, roofCol) {
+      const b = B.MeshBuilder.CreateBox("bld", { width: w, height: h, depth: d }, scene);
+      b.position.set(x, BASE + h / 2, z); b.material = mat(colA); b.receiveShadows = true; shadow.addShadowCaster(b);
+      const roof = B.MeshBuilder.CreateBox("roof", { width: w + 0.5, height: 0.5, depth: d + 0.5 }, scene);
+      roof.position.set(x, BASE + h + 0.25, z); roof.material = mat(roofCol); shadow.addShadowCaster(roof);
+      const door = B.MeshBuilder.CreateBox("door", { width: Math.min(2, w * 0.4), height: h * 0.5, depth: 0.12 }, scene);
+      door.position.set(x, BASE + h * 0.25, z + d / 2 + 0.07); door.material = mat(0x3a2f22);
+    }
+    const R = HALF + 9;
+    tree(-R, -R * 0.4, 1.2); tree(-R + 4, R * 0.3, 1); tree(R * 0.2, -R, 1.1);
+    tree(R, R * 0.5, 1.3); tree(-R * 0.5, R, 1); tree(R * 0.7, R * 0.8, 0.9); tree(-R, R, 1.1);
+    building(R, -R * 0.15, 8, 6, 5, 0xb24a2a, 0x6a3320);    // warehouse
+    building(-R, -R * 0.9, 5, 5, 3.5, 0xd9c34a, 0x8a7a2a);  // shed
+    building(R * 0.25, R, 6, 5, 4, 0x4d7fb0, 0x33597f);     // office
+    for (const [rx, rz] of [[-R * 0.2, -R * 0.7], [R * 0.85, -R * 0.6], [-R * 0.85, R * 0.2]]) {
+      const rk = B.MeshBuilder.CreateBox("rock", { width: 1.6, height: 1.0, depth: 1.4 }, scene);
+      rk.position.set(rx, BASE + 0.4, rz); rk.material = rock; shadow.addShadowCaster(rk);
+    }
+    const cloud = mat(0xffffff);
+    for (const [cx, cz] of [[-22, 44], [32, -32], [12, 54], [-44, -22]]) {
+      const cl = B.MeshBuilder.CreateBox("cloud", { width: 9, height: 2.6, depth: 5 }, scene);
+      cl.position.set(cx, 36, cz); cl.material = cloud;
+    }
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const cone = B.MeshBuilder.CreateCylinder("cone", { diameterTop: 0, diameterBottom: 1.4, height: 2.2 }, scene);
-      cone.position.set(sx * (HALF - 1.5), 1.1 + BASE, sz * (HALF - 1.5));
-      const m = new B.StandardMaterial("c", scene); m.diffuseColor = hex(0xff7a1a); cone.material = m;
-      shadow.addShadowCaster(cone);
+      const cone = B.MeshBuilder.CreateCylinder("cone", { diameterTop: 0, diameterBottom: 1.2, height: 1.8 }, scene);
+      cone.position.set(sx * (HALF - 1.5), BASE + 0.9, sz * (HALF - 1.5));
+      cone.material = mat(0xff7a1a); shadow.addShadowCaster(cone);
     }
   }
 
@@ -158,16 +205,32 @@
     const beacon = box("beacon", 0.3, 0.22, 0.3, -0.55, 2.34, cabZ, mat(0xffd84a), root);
     beacon._isBeacon = true; root._beacon = beacon;
 
-    // Tool.
-    if (shape.bladeFront) box("blade", 2.7, 1.3, 0.35, 0, 0.9, 1.95, accent, root);
-    if (shape.bucketFront) {
-      box("arm", 0.25, 0.25, 1.1, 0.6, 0.9, 1.6, dark, root);
-      box("arm2", 0.25, 0.25, 1.1, -0.6, 0.9, 1.6, dark, root);
-      box("bucket", 2.0, 0.7, 0.8, 0, 0.55, 2.2, accent, root);
+    // Tools — mounted on pivots so they can scoop / tip / push.
+    let toolPivot = null, toolKind = null;
+    const pivot = (x, y, z) => { const p = new B.TransformNode("toolp", scene); p.position.set(x, y, z); p.parent = root; return p; };
+    if (shape.bladeFront) {
+      toolPivot = pivot(0, 0.9, 1.4); toolKind = "blade";
+      box("blade", 2.7, 1.3, 0.35, 0, 0, 0.55, accent, toolPivot);
     }
-    if (shape.bedBack) { const bed = box("bed", 2.0, 1.0, 2.0, 0, 1.55, -0.7, accent, root); studs(bed, 2.0, 2.0, 0.56, dark); }
+    if (shape.bucketFront) {
+      toolPivot = pivot(0, 1.0, 1.45); toolKind = "bucket";
+      box("arm", 0.22, 0.22, 1.0, 0.62, 0, 0.1, dark, toolPivot);
+      box("arm2", 0.22, 0.22, 1.0, -0.62, 0, 0.1, dark, toolPivot);
+      box("bucket", 2.0, 0.5, 0.85, 0, -0.32, 0.7, accent, toolPivot);
+      box("lip", 2.0, 0.16, 0.3, 0, -0.55, 1.0, dark, toolPivot);
+    }
+    if (shape.bedBack) {
+      toolPivot = pivot(0, 1.05, -1.55); toolKind = "bed";
+      const bed = box("bed", 2.0, 0.95, 2.0, 0, 0.4, 0.95, accent, toolPivot);
+      studs(bed, 2.0, 2.0, 0.54, dark);
+    }
     if (shape.armBack) { box("boom", 0.3, 0.3, 1.6, 0, 1.6, -1.9, accent, root); box("boom2", 0.3, 1.2, 0.3, 0, 1.2, -2.6, accent, root); box("dipper", 1.0, 0.5, 0.4, 0, 0.5, -2.7, dark, root); }
-    if (shape.sideBucket) box("sidebkt", 0.7, 0.7, 2.6, 1.7, 0.6, 0, accent, root);
+    if (shape.sideBucket) {
+      toolPivot = pivot(1.2, 0.7, 0); toolKind = "side";
+      box("sidebkt", 0.7, 0.5, 2.4, 0.5, -0.2, 0, accent, toolPivot);
+      box("sidelip", 0.3, 0.16, 2.4, 0.85, -0.42, 0, dark, toolPivot);
+    }
+    root._toolPivot = toolPivot; root._toolKind = toolKind;
 
     // Wheels (spin via pivots).
     let layout;
@@ -342,6 +405,21 @@
       truckRoot.position.y = state.rideY + Math.max(0, bob);
       for (const w of wheels) w.rotation.x += mag * def.speed * dt * 0.5;
       if (truckRoot._beacon) { const f = 0.5 + 0.5 * Math.sin(performance.now() * 0.016); truckRoot._beacon.scaling.y = 0.6 + f; }
+
+      // Articulated tools: scoop, tip, or push.
+      const tp = truckRoot._toolPivot, kind = truckRoot._toolKind;
+      if (tp) {
+        let target = 0;
+        if (kind === "bucket" || kind === "side") {
+          if (state.acting.dig || state.acting.load) target = -0.55 - 0.18 * Math.sin(state.animT * 12);
+          else if (state.acting.dump) target = 0.8;
+        } else if (kind === "bed") {
+          target = state.acting.dump ? -1.0 : 0;
+        } else if (kind === "blade") {
+          target = state.acting.doze ? -0.1 + 0.05 * Math.sin(state.animT * 16) : 0;
+        }
+        tp.rotation.x += (target - tp.rotation.x) * Math.min(1, dt * 10);
+      }
     }
 
     // Camera follows.
@@ -419,7 +497,7 @@
   // =========================================================================
   seedDirt();
   buildBlocks();
-  buildFrame();
+  buildEnvironment();
   buildControls();
   setMachine(TRUCKS[0], true);
 
