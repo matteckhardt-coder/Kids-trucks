@@ -1,0 +1,173 @@
+:root {
+  --sky: #bfe3f0;
+  --sand: #cdb487;
+  --panel: rgba(35, 24, 12, 0.72);
+  --panel-solid: #3a2c18;
+  --text: #fff7e8;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #6d5836;
+  color: var(--text);
+  font-family: "Baloo 2", "Comic Sans MS", "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* ---- Machine picker (top bar) ---- */
+.machine-picker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+  padding: max(8px, env(safe-area-inset-top)) 8px 8px;
+  overflow-x: auto;
+  background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0));
+  scrollbar-width: none;
+}
+.machine-picker::-webkit-scrollbar { display: none; }
+
+.machine-btn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.12s ease;
+}
+.machine-btn .ico { font-size: 26px; line-height: 1; }
+.machine-btn.active {
+  border-color: #fff;
+  transform: translateY(2px) scale(1.04);
+}
+
+/* ---- Stage / canvas ---- */
+.stage { position: fixed; inset: 0; }
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* ---- Virtual joystick (left thumb) ---- */
+.joystick {
+  position: fixed;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 8;
+}
+.joystick.active { opacity: 1; }
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Action buttons (right thumb) ---- */
+.action-buttons {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 8;
+}
+.action-btn {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 4px solid rgba(255,255,255,0.7);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 18px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.25);
+}
+.action-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,0.25); }
+.action-btn.dig { background: #c0883e; }
+.action-btn.dump { background: #5a8f4e; width: 78px; height: 78px; font-size: 15px; }
+
+/* ---- HUD (bucket meter + label) ---- */
+.hud {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  z-index: 8;
+}
+.bucket-meter {
+  width: 140px;
+  height: 18px;
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.4);
+}
+.bucket-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #a9762f, #6e4a1d);
+  transition: width 0.08s linear;
+}
+.machine-label {
+  font-weight: 800;
+  font-size: 15px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--panel);
+}
+.flatten-btn {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel);
+  border: 2px solid rgba(255,255,255,0.35);
+  border-radius: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.flatten-btn:active { transform: translateY(2px); }
+
+@media (min-width: 820px) {
+  /* On desktop the touch controls are optional; keep them but a little dimmer. */
+  .action-buttons { opacity: 0.85; }
+}
