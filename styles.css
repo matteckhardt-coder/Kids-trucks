@@ -156,7 +156,7 @@ html, body {
 .machine-btn .lock { font-size: 11px; opacity: 0.9; }
 
 .topstat {
-  position: absolute; top: max(62px, calc(env(safe-area-inset-top) + 58px));
+  position: absolute; top: max(14px, calc(env(safe-area-inset-top) + 10px));
   left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 8px;
   padding: 5px 12px; border-radius: 12px; background: var(--panel); font-weight: 800; font-size: 14px;
@@ -166,7 +166,7 @@ html, body {
 .lvl { color: #ffe27a; }
 .done { color: #bfe6a8; }
 
-.goal { top: max(100px, calc(env(safe-area-inset-top) + 96px)); }
+.goal { top: max(54px, calc(env(safe-area-inset-top) + 50px)); }
 
 .action-btn.horn { background: #d8a32e; }
 

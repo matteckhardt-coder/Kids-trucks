@@ -14,11 +14,12 @@
   // Road grid lines + building obstacles (for collision).
   const RD = [-44, -22, 0, 22, 44], ROADW = 9;
   const obstacles = [];
+  const lots = []; // empty block centres (off-road) reserved for fire jobs
   function blocked(x, z, sr) { for (const o of obstacles) if (Math.hypot(x - o.x, z - o.z) < o.r + sr) return true; return false; }
   function onRoad(x, z, pad) { pad = pad || 0; for (const r of RD) if (Math.abs(x - r) < ROADW / 2 + pad || Math.abs(z - r) < ROADW / 2 + pad) return true; return false; }
 
   const input = { mx: 0, my: 0 }; const keys = Object.create(null);
-  let spraying = false, heldSpray = false;
+  let spraying = false, heldSpray = false, camZoom = 1;
 
   // ---- Engine / scene ----
   const canvas = document.getElementById("renderCanvas");
@@ -68,8 +69,8 @@
   // Water spray from the fire truck.
   const water = new B.ParticleSystem("water", 300, scene); water.particleTexture = DOT; water.emitter = new B.Vector3(0, 1, 0);
   water.color1 = new B.Color4(0.55, 0.8, 1, 0.9); water.color2 = new B.Color4(0.85, 0.95, 1, 0.85); water.colorDead = new B.Color4(0.7, 0.85, 1, 0);
-  water.minSize = 0.18; water.maxSize = 0.5; water.minLifeTime = 0.25; water.maxLifeTime = 0.55; water.emitRate = 0; water.gravity = new B.Vector3(0, -11, 0);
-  water.direction1 = new B.Vector3(0, 0.5, 1); water.direction2 = new B.Vector3(0, 1, 1); water.minEmitPower = 8; water.maxEmitPower = 12; water.updateSpeed = 0.02; water.start();
+  water.minSize = 0.18; water.maxSize = 0.5; water.minLifeTime = 0.3; water.maxLifeTime = 0.7; water.emitRate = 0; water.gravity = new B.Vector3(0, -6, 0);
+  water.direction1 = new B.Vector3(0, 0.5, 1); water.direction2 = new B.Vector3(0, 1, 1); water.minEmitPower = 13; water.maxEmitPower = 18; water.updateSpeed = 0.02; water.start();
 
   // ---- Assets ----
   const CT = {};
@@ -123,14 +124,15 @@
     const builds = ["building-type-a", "building-type-b", "building-type-c", "building-type-d", "building-type-e", "building-type-f", "building-type-g", "building-type-h", "building-type-i"];
     const centers = [-33, -11, 11, 33]; let bi = 0;
     for (const cx of centers) for (const cz of centers) {
-      if (Math.random() < 0.2) { // leave a small park
-        placeModel("city", "tree-large", cx - 2, cz, 5, Math.random() * 6);
-        placeModel("city", "tree-small", cx + 3, cz + 2.5, 4, Math.random() * 6);
+      if (Math.random() < 0.34) { // empty lot (park) — trees in the corners, centre clear for fire jobs
+        placeModel("city", "tree-large", cx - 6, cz - 6, 4.5, Math.random() * 6);
+        placeModel("city", "tree-small", cx + 6, cz + 6, 3.6, Math.random() * 6);
+        lots.push({ x: cx, z: cz, used: false });
         continue;
       }
       placeModel("city", builds[bi++ % builds.length], cx, cz, 8, Math.floor(Math.random() * 4) * Math.PI / 2);
       obstacles.push({ x: cx, z: cz, r: 4.3 });
-      if (Math.random() < 0.7) placeModel("city", Math.random() < 0.5 ? "tree-small" : "tree-large", cx + 5, cz + 5, 3.4, Math.random() * 6);
+      if (Math.random() < 0.6) placeModel("city", Math.random() < 0.5 ? "tree-small" : "tree-large", cx + 6, cz + 6, 3.2, Math.random() * 6);
     }
   }
   function placeModel(folderKey, name, x, z, s, ry) {
@@ -163,12 +165,18 @@
   function farFromJobs(x, z) { for (const j of jobs) if (Math.hypot(j.x - x, j.z - z) < 12) return false; return true; }
   function spawnJob() {
     const types = unlockedJobTypes(); if (!types.length) return;
-    const jt = types[(Math.random() * types.length) | 0], def = JOBDEF[jt];
-    let x, z, tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z) || blocked(x, z, 5) || (jt === "fire" && onRoad(x, z, 4.5))) && tries < 50);
+    let jt = types[(Math.random() * types.length) | 0], x, z, lot = null;
+    if (jt === "fire") {
+      const free = lots.filter((l) => !l.used && farFromJobs(l.x, l.z));
+      if (free.length) { lot = free[(Math.random() * free.length) | 0]; x = lot.x; z = lot.z; lot.used = true; }
+      else { const alt = types.filter((t) => t !== "fire"); if (!alt.length) return; jt = alt[(Math.random() * alt.length) | 0]; }
+    }
+    const def = JOBDEF[jt];
+    if (x === undefined) { let tries = 0; do { x = (Math.random() * 2 - 1) * PLAY; z = (Math.random() * 2 - 1) * PLAY; tries++; } while ((Math.hypot(x, z) < 12 || !farFromJobs(x, z) || blocked(x, z, 3)) && tries < 40); }
     const node = new B.TransformNode("job", scene); node.position.set(x, 0, z);
     const ring = B.MeshBuilder.CreateTorus("jr", { diameter: 5, thickness: 0.35, tessellation: 26 }, scene); ring.parent = node; ring.position.y = 0.08; const rm = new B.PBRMaterial("jrm", scene); rm.albedoColor = hex(def.color); rm.emissiveColor = hex(def.color).scale(0.5); ring.material = rm; ring.isPickable = false;
     const icon = emojiPlane(def.emoji, 2.6); icon.parent = node; icon.position.y = 3.2;
-    const job = { type: jt, x, z, node, ring, icon, work: 0, props: [] };
+    const job = { type: jt, x, z, node, ring, icon, work: 0, props: [], lot };
     node.metadata = jt;
     if (def.prop === "fire") { const fb = placeModel("city", "building-type-a", x, z, 6, Math.random() * 6); job.props.push(fb); job.fire = makeFire(x, z); job.obstacle = { x, z, r: 3.8 }; obstacles.push(job.obstacle); }
     else if (def.prop === "trash") { for (let k = 0; k < 4; k++) { const b = B.MeshBuilder.CreateBox("trash", { width: 0.8, height: 0.9, depth: 0.8 }, scene); b.position.set(x + (Math.random() * 2 - 1) * 1.4, 0.45, z + (Math.random() * 2 - 1) * 1.4); b.material = pbr(0x3f7a3a, 0.8); b.isPickable = false; shadow.addShadowCaster(b); job.props.push(b); } }
@@ -186,6 +194,7 @@
   function completeJob(job) {
     burst(job.x, 2, job.z, 90); Sound.ding(); setTimeout(() => Sound.horn(), 200);
     if (job.fire) job.fire.dispose();
+    if (job.lot) job.lot.used = false;
     if (job.obstacle) { const oi = obstacles.indexOf(job.obstacle); if (oi >= 0) obstacles.splice(oi, 1); }
     job.props.forEach((p) => p.dispose()); job.ring.dispose(); job.icon.dispose(); job.node.dispose();
     const idx = jobs.indexOf(job); if (idx >= 0) jobs.splice(idx, 1);
@@ -207,10 +216,10 @@
     if (m && !m.unlocked) {
       m.unlocked = true; m.holder.setEnabled(true);
       const [x, z] = DEPOT[machines.indexOf(m) % DEPOT.length]; m.x = x; m.z = z;
-      buildPicker(); popup("Level " + level + "! " + nv.emoji + "\n" + nv.name + " unlocked!");
+      popup("Level " + level + "! " + nv.emoji + "\n" + nv.name + " unlocked!\nFind it and tap to drive!");
     } else popup("Level " + level + "! 🎉");
   }
-  function popup(txt) { const el = document.getElementById("cheer"); el.innerHTML = txt.replace("\n", "<br>"); el.classList.add("show"); cheerT = 2.2; }
+  function popup(txt) { const el = document.getElementById("cheer"); el.innerHTML = txt.replace(/\n/g, "<br>"); el.classList.add("show"); cheerT = 2.6; }
   let cheerT = 0;
 
   // ---- Guiding arrow ----
@@ -253,13 +262,16 @@
       const nz = clamp(m.z + vz, -SIZE, SIZE); if (!blocked(m.x, nz, R)) m.z = nz;
       const tg = Math.atan2(dx, dz); let d = tg - m.heading; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; m.heading += d * 0.25;
     }
-    // Spray water from the front while the SPRAY button is held.
+    // Spray water from the front while SPRAY is held — aim at a nearby fire if there is one.
     if (spraying) {
-      const sx = m.x + Math.sin(m.heading) * 1.8, sz = m.z + Math.cos(m.heading) * 1.8;
-      water.emitter.set(sx, 1.5, sz);
-      water.direction1.set(Math.sin(m.heading) - 0.25, 0.5, Math.cos(m.heading) - 0.25);
-      water.direction2.set(Math.sin(m.heading) + 0.25, 1.1, Math.cos(m.heading) + 0.25);
-      water.emitRate = 240;
+      const ex = m.x + Math.sin(m.heading) * 1.8, ez = m.z + Math.cos(m.heading) * 1.8;
+      let tx = m.x + Math.sin(m.heading) * 8, tz = m.z + Math.cos(m.heading) * 8;
+      for (const j of jobs) if (j.type === "fire" && Math.hypot(j.x - m.x, j.z - m.z) < 11) { tx = j.x; tz = j.z; break; }
+      const ddx = tx - ex, ddz = tz - ez, dl = Math.hypot(ddx, ddz) || 1;
+      water.emitter.set(ex, 1.6, ez);
+      water.direction1.set(ddx / dl - 0.18, 0.45, ddz / dl - 0.18);
+      water.direction2.set(ddx / dl + 0.18, 0.85, ddz / dl + 0.18);
+      water.emitRate = 260;
     }
     // animate all vehicles (wheels spin only for active)
     for (const mm of machines) { if (!mm.unlocked) continue; mm.holder.position.set(mm.x, mm.yOffset, mm.z); mm.holder.rotation.y = mm.heading + FACE; const sp = (mm === m ? mag : 0) * mm.def.speed * dt * 1.1; for (const w of mm.wheels) w.rotation.x += sp; }
@@ -269,7 +281,8 @@
     for (const j of jobs) { j.icon.position.y = 3.2 + Math.sin(performance.now() * 0.004 + j.x) * 0.25; j.ring.rotation.y += dt * 0.6; }
     if (myJob) {
       const dist = Math.hypot(myJob.x - m.x, myJob.z - m.z);
-      if (dist < 4.2) {
+      const reach = myJob.type === "fire" ? 7.5 : 4.2; // fire has a solid building, so spray from farther
+      if (dist < reach) {
         const canWork = myJob.type !== "fire" || spraying; // fires need water!
         if (canWork) {
           myJob.work += dt;
@@ -293,7 +306,7 @@
 
     // camera
     const k = Math.min(1, dt * 5);
-    camera.position.x += (m.x + CAM.x - camera.position.x) * k; camera.position.y += (CAM.y - camera.position.y) * k; camera.position.z += (m.z + CAM.z - camera.position.z) * k;
+    camera.position.x += (m.x + CAM.x * camZoom - camera.position.x) * k; camera.position.y += (CAM.y * camZoom - camera.position.y) * k; camera.position.z += (m.z + CAM.z * camZoom - camera.position.z) * k;
     camLook.x += (m.x - camLook.x) * k; camLook.z += (m.z - camLook.z) * k; camLook.y = 0.6; camera.setTarget(camLook);
 
     Sound.engine(mag);
@@ -309,6 +322,7 @@
     spraying = heldSpray || !!keys[" "] || !!keys["j"];
   }
   let joyId = null, joyOX = 0, joyOY = 0; const JR = 56; let joyEl, knobEl; const taps = {};
+  const pointers = {}; let pinchDist = 0;
   function startJoy(id, x, y) { joyId = id; joyOX = x; joyOY = y; joyEl.style.left = (x - 66) + "px"; joyEl.style.top = (y - 66) + "px"; joyEl.classList.add("active"); moveJoy(x, y); }
   function moveJoy(x, y) { let dx = x - joyOX, dy = y - joyOY; const d = Math.hypot(dx, dy); if (d > JR) { dx = dx / d * JR; dy = dy / d * JR; } knobEl.style.transform = `translate(${dx}px, ${dy}px)`; input.mx = dx / JR; input.my = dy / JR; }
   function endJoy() { joyId = null; joyEl.classList.remove("active"); knobEl.style.transform = "translate(0,0)"; input.mx = 0; input.my = 0; }
@@ -316,16 +330,29 @@
   function pickTruck(x, y) { const p = scene.pick(x, y); let n = p && p.pickedMesh; while (n) { if (n.truckRef) return n.truckRef; n = n.parent; } return null; }
   function buildControls() {
     joyEl = document.getElementById("joystick"); knobEl = document.getElementById("joystick-knob");
-    buildPicker();
     document.getElementById("btn-mute").addEventListener("click", (e) => { Sound.ensure(); e.currentTarget.textContent = Sound.toggleMute() ? "🔇" : "🔊"; });
     const sprayBtn = document.getElementById("btn-spray");
     const sOn = (e) => { Sound.ensure(); heldSpray = true; if (e.cancelable) e.preventDefault(); };
     const sOff = () => { heldSpray = false; };
     sprayBtn.addEventListener("pointerdown", sOn); sprayBtn.addEventListener("pointerup", sOff); sprayBtn.addEventListener("pointercancel", sOff); sprayBtn.addEventListener("pointerleave", sOff);
-    window.addEventListener("pointerdown", (e) => { Sound.ensure(); if (isCtl(e.target)) return; taps[e.pointerId] = { x: e.clientX, y: e.clientY, moved: false, truck: pickTruck(e.clientX, e.clientY) }; if (joyId === null && e.clientX <= window.innerWidth * 0.62) startJoy(e.pointerId, e.clientX, e.clientY); });
-    window.addEventListener("pointermove", (e) => { const tp = taps[e.pointerId]; if (tp && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) > 10) tp.moved = true; if (e.pointerId === joyId) moveJoy(e.clientX, e.clientY); });
-    const up = (e) => { const tp = taps[e.pointerId]; if (tp && !tp.moved && tp.truck) setActive(tp.truck); delete taps[e.pointerId]; if (e.pointerId === joyId) endJoy(); };
+
+    function pinchOf() { const ids = Object.keys(pointers); if (ids.length < 2) return 0; const a = pointers[ids[0]], b = pointers[ids[1]]; return Math.hypot(a.x - b.x, a.y - b.y); }
+    window.addEventListener("pointerdown", (e) => {
+      Sound.ensure(); if (isCtl(e.target)) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      if (Object.keys(pointers).length >= 2) { if (joyId !== null) endJoy(); pinchDist = pinchOf(); for (const id in taps) taps[id].moved = true; return; }
+      taps[e.pointerId] = { x: e.clientX, y: e.clientY, moved: false, truck: pickTruck(e.clientX, e.clientY) };
+      if (joyId === null && e.clientX <= window.innerWidth * 0.62) startJoy(e.pointerId, e.clientX, e.clientY);
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (pointers[e.pointerId]) { pointers[e.pointerId].x = e.clientX; pointers[e.pointerId].y = e.clientY; }
+      if (Object.keys(pointers).length >= 2) { const d = pinchOf(); if (pinchDist && d) { camZoom = clamp(camZoom * (pinchDist / d), 0.55, 3.2); } pinchDist = d; return; }
+      const tp = taps[e.pointerId]; if (tp && Math.hypot(e.clientX - tp.x, e.clientY - tp.y) > 10) tp.moved = true;
+      if (e.pointerId === joyId) moveJoy(e.clientX, e.clientY);
+    });
+    const up = (e) => { delete pointers[e.pointerId]; pinchDist = 0; const tp = taps[e.pointerId]; if (tp && !tp.moved && tp.truck) setActive(tp.truck); delete taps[e.pointerId]; if (e.pointerId === joyId) endJoy(); };
     window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+    window.addEventListener("wheel", (e) => { camZoom = clamp(camZoom * (1 + Math.sign(e.deltaY) * 0.12), 0.55, 3.2); }, { passive: true });
   }
   window.addEventListener("keydown", (e) => { keys[e.key.toLowerCase()] = true; Sound.ensure(); });
   window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
