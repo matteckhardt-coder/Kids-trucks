@@ -6,12 +6,15 @@
   const B = BABYLON;
 
   // ---- Grid / world ----
-  const GRID = 28;          // cells per side
+  const GRID = 40;          // cells per side (bigger working area)
   const CELL = 2;           // world units per cell
   const HALF = (GRID * CELL) / 2;
   const BASE = 3;           // base ground thickness (units) — lets you dig down
   const MAX_DIRT = 6;
   const REACH = CELL * 1.15;
+  // The machine `speed` values are tuned in old 2D pixel units; scale them down
+  // for the 3D world so the trucks drive at a calm, kid-friendly pace.
+  const SPEED_SCALE = 0.05;
 
   const dirt = new Float32Array(GRID * GRID);
   const tint = new Float32Array(GRID * GRID); // small per-cell colour variation
@@ -24,8 +27,11 @@
   const worldToR = (z) => Math.round((z + HALF) / CELL - 0.5);
 
   function seedDirt() {
-    for (let i = 0; i < dirt.length; i++) { dirt[i] = 0; tint[i] = 0.86 + Math.random() * 0.14; }
-    const mounds = [[8, 7, 4, 4.5], [20, 8, 3.4, 4], [14, 18, 5, 5], [22, 20, 3, 3.6], [6, 20, 3, 3.4]];
+    for (let i = 0; i < dirt.length; i++) { dirt[i] = 0; tint[i] = 0.9 + Math.random() * 0.12; }
+    const mounds = [
+      [10, 9, 5, 4.5], [28, 11, 4, 4], [20, 22, 6, 5], [32, 30, 4, 4.2],
+      [8, 30, 4, 3.8], [31, 7, 3.5, 3.6], [14, 33, 4, 4], [23, 6, 3.5, 3.6], [33, 20, 3.5, 3.8],
+    ];
     for (const [mc, mr, rad, peak] of mounds)
       for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
         const d = Math.hypot(c - mc, r - mr);
@@ -67,9 +73,31 @@
   const block = B.MeshBuilder.CreateBox("block", { size: 1 }, scene);
   const blockMat = new B.StandardMaterial("blockMat", scene);
   blockMat.diffuseColor = new B.Color3(1, 1, 1);
-  blockMat.specularColor = new B.Color3(0.04, 0.04, 0.04);
+  blockMat.diffuseTexture = makeDirtTexture();
+  blockMat.specularColor = new B.Color3(0.05, 0.05, 0.05);
   block.material = blockMat;
   block.receiveShadows = true;
+
+  // A chunky soil texture so the dirt reads as real earth, not flat colour.
+  function makeDirtTexture() {
+    const dt = new B.DynamicTexture("dirt", { width: 256, height: 256 }, scene, true);
+    const ctx = dt.getContext();
+    ctx.fillStyle = "#8a5d33"; ctx.fillRect(0, 0, 256, 256);
+    const blob = (n, cols, rmin, rmax, a) => {
+      ctx.globalAlpha = a;
+      for (let i = 0; i < n; i++) {
+        ctx.fillStyle = cols[(Math.random() * cols.length) | 0];
+        const x = Math.random() * 256, y = Math.random() * 256, r = rmin + Math.random() * (rmax - rmin);
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      }
+    };
+    blob(460, ["#7a4f2a", "#946334", "#6e4524"], 1, 4, 0.6);  // soil grain
+    blob(140, ["#5e3c1f", "#4f3318"], 2, 6, 0.5);             // dark clods
+    blob(110, ["#a9824f", "#b9925a"], 1, 3, 0.6);             // light grit
+    blob(45, ["#9a9384", "#857c6b", "#736a59"], 2, 5, 0.75);  // pebbles
+    ctx.globalAlpha = 1; dt.update();
+    return dt;
+  }
 
   const N = GRID * GRID;
   const matrixData = new Float32Array(N * 16);
@@ -78,12 +106,13 @@
   const _pos = new B.Vector3();
   const _q = B.Quaternion.Identity();
 
+  // Gentle multiplier over the soil texture: piles drier/brighter, holes darker/wetter.
   function dirtColor(h, i) {
-    let r, g, b;
-    if (h >= 0) { const k = Math.min(1, h / MAX_DIRT); r = lerp(0x86, 0xc4, k); g = lerp(0x5a, 0x9f, k); b = lerp(0x2c, 0x5f, k); }
-    else { const k = Math.min(1, -h / 3); r = lerp(0x86, 0x49, k); g = lerp(0x5a, 0x33, k); b = lerp(0x2c, 0x16, k); }
     const t = tint[i];
-    return [(r / 255) * t, (g / 255) * t, (b / 255) * t];
+    let f;
+    if (h >= 0) f = lerp(1.0, 1.25, Math.min(1, h / MAX_DIRT));
+    else f = lerp(1.0, 0.55, Math.min(1, -h / 3));
+    return [f * t, f * t * 0.97, f * t * 0.9];
   }
 
   function writeCell(c, r) {
@@ -334,8 +363,9 @@
       const dx = camRight.x * input.mx + camFwd.x * (-input.my);
       const dz = camRight.z * input.mx + camFwd.z * (-input.my);
       const len = Math.hypot(dx, dz) || 1;
-      state.x = clamp(state.x + (dx / len) * mag * def.speed * dt, -HALF + 1, HALF - 1);
-      state.z = clamp(state.z + (dz / len) * mag * def.speed * dt, -HALF + 1, HALF - 1);
+      const v = def.speed * SPEED_SCALE;
+      state.x = clamp(state.x + (dx / len) * mag * v * dt, -HALF + 1, HALF - 1);
+      state.z = clamp(state.z + (dz / len) * mag * v * dt, -HALF + 1, HALF - 1);
       const target = Math.atan2(dx, dz);
       let d = target - state.heading;
       while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
@@ -403,7 +433,7 @@
       state.animT += dt * (working ? 17 : mag > 0.1 ? 9 + mag * 7 : 3);
       const bob = Math.sin(state.animT) * (working ? 0.09 : mag > 0.1 ? 0.06 : 0.02);
       truckRoot.position.y = state.rideY + Math.max(0, bob);
-      for (const w of wheels) w.rotation.x += mag * def.speed * dt * 0.5;
+      for (const w of wheels) w.rotation.x += (mag * def.speed * SPEED_SCALE * dt) / 0.6;
       if (truckRoot._beacon) { const f = 0.5 + 0.5 * Math.sin(performance.now() * 0.016); truckRoot._beacon.scaling.y = 0.6 + f; }
 
       // Articulated tools: scoop, tip, or push.
