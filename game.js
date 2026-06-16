@@ -7,7 +7,7 @@
 
   // ---- World / grid ----
   const GRID = 40, CELL = 2, HALF = (GRID * CELL) / 2, BASE = 3, MAX_DIRT = 6, REACH = CELL * 1.25;
-  const FACE = Math.PI; // Kenney Car Kit models face -Z; rotate to our +Z forward
+  const FACE = 0; // Kenney Car Kit models face +Z forward (our forward)
 
   const dirt = new Float32Array(GRID * GRID), tint = new Float32Array(GRID * GRID), rough = new Float32Array(GRID * GRID);
   const di = (c, r) => r * GRID + c;
